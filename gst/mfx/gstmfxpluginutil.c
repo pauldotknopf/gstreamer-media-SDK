@@ -38,7 +38,7 @@ gst_mfx_ensure_aggregator (GstElement * element)
   if (gst_mfx_video_context_prepare (element, &plugin->aggregator))
     return TRUE;
 
-  aggregator = gst_mfx_task_aggregator_new ();
+  aggregator = g_object_new(GST_TYPE_MFX_TASK_AGGREGATOR, NULL);
   if (!aggregator)
     return FALSE;
 
@@ -179,7 +179,7 @@ gst_mfx_find_preferred_caps_feature (GstPad * pad,
   GstCaps *caps = NULL;
   GstCaps *out_caps, *templ;
   GstStructure *structure;
-  gchar *format = NULL;
+  const gchar *format = NULL;
 
   templ = gst_pad_get_pad_template_caps (pad);
   out_caps = gst_caps_intersect_full (gst_pad_peer_query_caps (pad, templ),

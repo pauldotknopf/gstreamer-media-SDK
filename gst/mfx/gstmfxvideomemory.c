@@ -263,7 +263,7 @@ gst_mfx_video_memory_map (GstMfxVideoMemory * mem, gsize maxsize, guint flags)
     case GST_MFX_VIDEO_MEMORY_MAP_TYPE_SURFACE:
       if (!mem->surface)
         goto error_no_surface;
-      mem->data = mem->surface;
+      mem->data = (void*) mem->surface;
       break;
     case GST_MFX_SYSTEM_MEMORY_MAP_TYPE_LINEAR:
       if (!get_image_data (mem))
@@ -457,6 +457,7 @@ gst_mfx_video_allocator_new (
   allocator->image_info = *vip;
 
   allocator->surface_pool = gst_mfx_surface_pool_new (
+	  g_object_new(GST_TYPE_MFX_SURFACE_POOL, NULL),
       &allocator->image_info, mapped);
   if (!allocator->surface_pool)
     goto error_create_surface_pool;

@@ -314,13 +314,13 @@ gst_mfxdec_create (GstMfxDec * mfxdec, GstCaps * caps)
 
   /* Increase async depth considerably when using decodebin to avoid
    * jerky video playback resulting from threading issues */
-  parent = gst_object_get_parent(mfxdec);
+  parent = gst_object_get_parent (GST_OBJECT(mfxdec));
   if (parent && !GST_IS_PIPELINE (GST_ELEMENT(parent)))
     mfxdec->async_depth = 16;
   gst_object_replace (&parent, NULL);
 
-  mfxdec->decoder = gst_mfx_decoder_new (plugin->aggregator,
-      profile, &info, mfxdec->async_depth, mfxdec->live_mode);
+  mfxdec->decoder = gst_mfx_decoder_new (g_object_new(GST_TYPE_MFX_DECODER, NULL),
+    plugin->aggregator, profile, &info, mfxdec->async_depth, mfxdec->live_mode);
   if (!mfxdec->decoder)
     return FALSE;
 
