@@ -90,13 +90,13 @@
       <AdditionalIncludeDirectories>.;$(ProjectDir)gst-libs\mfx;$(GSTREAMER_1_0_ROOT_X86_64)lib\glib-2.0\include;$(GSTREAMER_1_0_ROOT_X86_64)include\gstreamer-1.0;$(GSTREAMER_1_0_ROOT_X86_64)include\glib-2.0;$(INTELMEDIASDKROOT)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <UndefinePreprocessorDefinitions>
       </UndefinePreprocessorDefinitions>
-      <PreprocessorDefinitions>_MBCS;%(PreprocessorDefinitions);WITH_D3D11_BACKEND;MFX_DECODER;MFX_VC1_PARSER;MFX_VPP;MFX_SINK;MFX_SINK_BIN;MFX_H264_ENCODER;MFX_H265_ENCODER;MFX_MPEG2_ENCODER;MFX_JPEG_ENCODER;GST_USE_UNSTABLE_API;_CRT_SECURE_NO_WARNINGS</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_MBCS;%(PreprocessorDefinitions);WITH_D3D11_BACKEND;MFX_DECODER;MFX_VPP;MFX_SINK;MFX_SINK_BIN;MFX_H264_ENCODER;MFX_H265_ENCODER;MFX_MPEG2_ENCODER;MFX_JPEG_ENCODER;GST_USE_UNSTABLE_API;_CRT_SECURE_NO_WARNINGS</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(GSTREAMER_1_0_ROOT_X86_64)lib;$(GSTREAMER_1_0_ROOT_X86_64)lib\gstreamer-1.0;$(INTELMEDIASDKROOT)lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>libmfx.lib;dxva2.lib;d3d11.lib;dxgi.lib;dxguid.lib;gstreamer-1.0.lib;gobject-2.0.lib;glib-2.0.lib;gio-2.0.lib;gstpbutils-1.0.lib;gstbase-1.0.lib;gstvideo-1.0.lib;gstgl-1.0.lib;gstcodecparsers-1.0.lib;legacy_stdio_definitions.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>libmfx.lib;dxva2.lib;d3d11.lib;dxgi.lib;dxguid.lib;gstreamer-1.0.lib;gobject-2.0.lib;glib-2.0.lib;gio-2.0.lib;gstpbutils-1.0.lib;gstbase-1.0.lib;gstvideo-1.0.lib;legacy_stdio_definitions.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SubSystem>Console</SubSystem>
     </Link>
   </ItemDefinitionGroup>
@@ -168,7 +168,6 @@
     <ClCompile Include="gst\mfx\gstmfxvideocontext.c" />
     <ClCompile Include="gst\mfx\gstmfxvideomemory.c" />
     <ClCompile Include="gst\mfx\gstmfxvideometa.c" />
-    <ClCompile Include="parsers\gstvc1parse.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="gst-libs\mfx\common\gstbitwriter.h" />
@@ -217,7 +216,6 @@
     <ClInclude Include="gst\mfx\gstmfxvideocontext.h" />
     <ClInclude Include="gst\mfx\gstmfxvideomemory.h" />
     <ClInclude Include="gst\mfx\gstmfxvideometa.h" />
-    <ClInclude Include="parsers\gstvc1parse.h" />
     <ClInclude Include="version.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

@@ -24,8 +24,6 @@
 #define GST_MFX_ENCODER_H
 
 #include <gst/video/gstvideoutils.h>
-#include <mfxvideo.h>
-
 #include "gstmfxtaskaggregator.h"
 
 G_BEGIN_DECLS
@@ -36,26 +34,6 @@ G_BEGIN_DECLS
 
 typedef struct _GstMfxEncoder                 GstMfxEncoder;
 
-/**
- * GstMfxEncoderStatus:
- * @GST_MFX_ENCODER_STATUS_SUCCESS: Success.
- * @GST_MFX_ENCODER_STATUS_NO_SURFACE: No surface left to encode.
- * @GST_MFX_ENCODER_STATUS_NO_BUFFER: No coded buffer left to hold
- *   the encoded picture.
- * @GST_MFX_ENCODER_STATUS_ERROR_UNKNOWN: Unknown error.
- * @GST_MFX_ENCODER_STATUS_ERROR_ALLOCATION_FAILED: No memory left.
- * @GST_MFX_ENCODER_STATUS_ERROR_OPERATION_FAILED: The requested
- *   operation failed to execute properly. e.g. invalid point in time to
- *   execute the operation.
- * @GST_MFX_ENCODER_STATUS_ERROR_UNSUPPORTED_RATE_CONTROL:
- *   Unsupported rate control value.
- * @GST_MFX_ENCODER_STATUS_ERROR_UNSUPPORTED_PROFILE: Unsupported profile.
- * @GST_MFX_ENCODER_STATUS_ERROR_INVALID_PARAMETER: Invalid parameter.
- * @GST_MFX_ENCODER_STATUS_ERROR_INVALID_BUFFER: Invalid buffer.
- * @GST_MFX_ENCODER_STATUS_ERROR_INVALID_SURFACE: Invalid surface.
- *
- * Set of #GstMfxEncoder status codes.
- */
 typedef enum
 {
   GST_MFX_ENCODER_STATUS_SUCCESS = 0,
@@ -66,11 +44,7 @@ typedef enum
   GST_MFX_ENCODER_STATUS_ERROR_UNKNOWN = -1,
   GST_MFX_ENCODER_STATUS_ERROR_ALLOCATION_FAILED = -2,
   GST_MFX_ENCODER_STATUS_ERROR_OPERATION_FAILED = -3,
-  GST_MFX_ENCODER_STATUS_ERROR_UNSUPPORTED_RATE_CONTROL = -4,
-  GST_MFX_ENCODER_STATUS_ERROR_UNSUPPORTED_PROFILE = -5,
-  GST_MFX_ENCODER_STATUS_ERROR_INVALID_PARAMETER = -100,
-  GST_MFX_ENCODER_STATUS_ERROR_INVALID_BUFFER = -101,
-  GST_MFX_ENCODER_STATUS_ERROR_INVALID_SURFACE = -102,
+  GST_MFX_ENCODER_STATUS_ERROR_INVALID_PARAMETER = -4,
 } GstMfxEncoderStatus;
 
 typedef enum {
@@ -135,10 +109,6 @@ typedef struct {
   GParamSpec *const pspec;
 } GstMfxEncoderPropInfo;
 
-
-GType
-gst_mfx_encoder_get_type(void) G_GNUC_CONST;
-
 GType
 gst_mfx_encoder_preset_get_type (void);
 
@@ -202,6 +172,9 @@ gst_mfx_encoder_encode (GstMfxEncoder * encoder, GstVideoCodecFrame * frame);
 
 GstMfxEncoderStatus
 gst_mfx_encoder_flush (GstMfxEncoder * encoder, GstVideoCodecFrame ** frame);
+
+GType
+gst_mfx_encoder_get_type(void) G_GNUC_CONST;
 
 G_END_DECLS
 

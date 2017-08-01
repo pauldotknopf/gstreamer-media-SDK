@@ -19,9 +19,6 @@
     <Filter Include="Header Files\gst-libs">
       <UniqueIdentifier>{4a891e43-ce70-49cb-8f64-6769c6ad23c9}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Header Files\parsers">
-      <UniqueIdentifier>{6823d0ff-8659-4968-aef3-fc4ade721476}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Header Files\gst-libs\common">
       <UniqueIdentifier>{195d0d02-7f1b-44ba-98a5-47874d6f522d}</UniqueIdentifier>
     </Filter>
@@ -30,9 +27,6 @@
     </Filter>
     <Filter Include="Source Files\gst-libs">
       <UniqueIdentifier>{5fa63c14-292f-4e97-adfc-e2acb9c9af9a}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source Files\parsers">
-      <UniqueIdentifier>{910caa1f-36f0-4142-8bde-f96fd422af1e}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\gst-libs\common">
       <UniqueIdentifier>{27d74f27-a4fc-4db3-aeb4-3d9fbbacdd64}</UniqueIdentifier>
@@ -128,9 +122,6 @@
     </ClCompile>
     <ClCompile Include="gst\mfx\gstmfxvideometa.c">
       <Filter>Source Files\gst</Filter>
-    </ClCompile>
-    <ClCompile Include="parsers\gstvc1parse.c">
-      <Filter>Source Files\parsers</Filter>
     </ClCompile>
     <ClCompile Include="gst-libs\mfx\common\gstbitwriter.c">
       <Filter>Source Files\gst-libs\common</Filter>
@@ -262,9 +253,6 @@
     </ClInclude>
     <ClInclude Include="gst-libs\mfx\sysdeps.h">
       <Filter>Header Files\gst-libs</Filter>
-    </ClInclude>
-    <ClInclude Include="parsers\gstvc1parse.h">
-      <Filter>Header Files\parsers</Filter>
     </ClInclude>
     <ClInclude Include="gst-libs\mfx\common\gstbitwriter.h">
       <Filter>Header Files\gst-libs\common</Filter>
