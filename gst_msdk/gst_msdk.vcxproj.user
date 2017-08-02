@@ -5,6 +5,6 @@
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
     <LocalDebuggerWorkingDirectory>$(TargetDir)</LocalDebuggerWorkingDirectory>
     <LocalDebuggerCommand>$(GSTREAMER_1_0_ROOT_X86_64)bin\gst-launch-1.0.exe</LocalDebuggerCommand>
-    <LocalDebuggerCommandArguments>--gst-debug=mfx*:6 --gst-plugin-load=$(TargetPath) filesrc location="C:/Users/Ishmael/Videos/trailer_1080p.mov" ! qtdemux ! h264parse ! mfxdecode ! mfxvpp contrast=2 brightness=-90 ! mfxhevcenc ! matroskamux ! filesink location="C:/Users/Ishmael/Videos/encoded.mkv" sync=false</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>--gst-debug=mfx*:6 --gst-plugin-load=$(TargetPath) filesrc location="C:/Users/$(USERNAME)/Videos/trailer_1080p.mov" ! qtdemux ! h264parse ! mfxdecode ! mfxvpp contrast=2 brightness=-90 rotation=270 ! mfxsink</LocalDebuggerCommandArguments>
   </PropertyGroup>
 </Project>
