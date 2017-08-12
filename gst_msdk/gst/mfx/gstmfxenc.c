@@ -406,12 +406,13 @@ gst_mfxenc_handle_frame (GstVideoEncoder * venc, GstVideoCodecFrame * frame)
     goto error_buffer_no_surface;
 
   gst_video_codec_frame_set_user_data (frame,
-      gst_mfx_surface_ref (surface), (GDestroyNotify)gst_mfx_surface_unref);
+    gst_mfx_surface_ref (surface), (GDestroyNotify)gst_mfx_surface_unref);
 
   status = gst_mfx_encoder_encode (encode->encoder, frame);
   if (status < GST_MFX_ENCODER_STATUS_SUCCESS)
     goto error_encode_frame;
   else if (status > 0) {
+    gst_video_codec_frame_unref (frame);
     ret = GST_FLOW_OK;
     goto done;
   }
@@ -435,7 +436,7 @@ error_buffer_no_meta:
   }
 error_buffer_no_surface:
   {
-    GST_ERROR ("failed to get VA surface");
+    GST_ERROR ("failed to get MFX surface");
     gst_video_codec_frame_unref (frame);
     return GST_FLOW_ERROR;
   }
@@ -477,9 +478,7 @@ gst_mfxenc_propose_allocation (GstVideoEncoder * venc, GstQuery * query)
 {
   GstMfxPluginBase *const plugin = GST_MFX_PLUGIN_BASE (venc);
 
-  if (!gst_mfx_plugin_base_propose_allocation (plugin, query))
-    return FALSE;
-  return TRUE;
+  return gst_mfx_plugin_base_propose_allocation (plugin, query);
 }
 
 static void

@@ -56,13 +56,13 @@ static const char gst_mfxpostproc_src_caps_str[] =
   GST_VIDEO_CAPS_MAKE (GST_MFX_SUPPORTED_OUTPUT_FORMATS);
 
 static GstStaticPadTemplate gst_mfxpostproc_sink_factory =
-GST_STATIC_PAD_TEMPLATE ("sink",
+  GST_STATIC_PAD_TEMPLATE ("sink",
     GST_PAD_SINK,
     GST_PAD_ALWAYS,
     GST_STATIC_CAPS (gst_mfxpostproc_sink_caps_str));
 
 static GstStaticPadTemplate gst_mfxpostproc_src_factory =
-GST_STATIC_PAD_TEMPLATE ("src",
+  GST_STATIC_PAD_TEMPLATE ("src",
     GST_PAD_SRC,
     GST_PAD_ALWAYS,
     GST_STATIC_CAPS (gst_mfxpostproc_src_caps_str));
@@ -107,12 +107,11 @@ enum
 #define DEFAULT_HUE                     0.0
 #define DEFAULT_CONTRAST                1.0
 
-
 #define GST_MFX_TYPE_DEINTERLACE_MODE \
     gst_mfx_deinterlace_mode_get_type()
 
 static GType
-gst_mfx_deinterlace_mode_get_type(void)
+gst_mfx_deinterlace_mode_get_type (void)
 {
   static GType deinterlace_mode_type = 0;
 
@@ -438,15 +437,15 @@ gst_mfxpostproc_ensure_filter (GstMfxPostproc * vpp)
   if (!gst_mfx_plugin_base_ensure_aggregator (plugin))
     return FALSE;
 
-  task = gst_mfx_task_aggregator_get_last_task(plugin->aggregator);
+  task = gst_mfx_task_aggregator_get_last_task (plugin->aggregator);
 
   plugin->srcpad_caps_is_raw = FALSE;
 
   if (!plugin->sinkpad_caps_is_raw
-      && gst_mfx_task_has_type(task, GST_MFX_TASK_DECODER)) {
-    mfxFrameAllocRequest *request = gst_mfx_task_get_request(task);
+      && gst_mfx_task_has_type (task, GST_MFX_TASK_DECODER)) {
+    mfxFrameAllocRequest *request = gst_mfx_task_get_request (task);
 
-    plugin->sinkpad_caps_is_raw = !gst_mfx_task_has_video_memory(task);
+    plugin->sinkpad_caps_is_raw = !gst_mfx_task_has_video_memory (task);
 
     vpp->filter = gst_mfx_filter_new_with_task (plugin->aggregator,
       task, GST_MFX_TASK_VPP_IN,
@@ -456,17 +455,17 @@ gst_mfxpostproc_ensure_filter (GstMfxPostproc * vpp)
       success = FALSE;
     }
 
-    vpp->async_depth = gst_mfx_task_get_video_params(task)->AsyncDepth;
+    vpp->async_depth = gst_mfx_task_get_video_params (task)->AsyncDepth;
     request->Type |= MFX_MEMTYPE_EXTERNAL_FRAME | MFX_MEMTYPE_FROM_DECODE;
     request->NumFrameSuggested += (1 - vpp->async_depth);
 
-    gst_mfx_filter_set_frame_info(vpp->filter, &request->Info);
-    if (request->Info.FourCC != gst_video_format_to_mfx_fourcc(vpp->format))
+    gst_mfx_filter_set_frame_info (vpp->filter, &request->Info);
+    if (request->Info.FourCC != gst_video_format_to_mfx_fourcc (vpp->format))
       vpp->flags |= GST_MFX_POSTPROC_FLAG_FORMAT;
     if (vpp->flags & GST_MFX_POSTPROC_FLAG_DEINTERLACING) {
       gdouble frame_rate;
 
-      gst_util_fraction_to_double(request->Info.FrameRateExtN,
+      gst_util_fraction_to_double (request->Info.FrameRateExtN,
         request->Info.FrameRateExtD, &frame_rate);
       if ((int)(frame_rate + 0.5) == 60) {
         vpp->deinterlace_method = GST_MFX_DEINTERLACE_METHOD_ADVANCED_NOREF;
@@ -475,14 +474,14 @@ gst_mfxpostproc_ensure_filter (GstMfxPostproc * vpp)
     }
   }
   else {
-    vpp->filter = gst_mfx_filter_new(plugin->aggregator,
+    vpp->filter = gst_mfx_filter_new (plugin->aggregator,
         plugin->sinkpad_caps_is_raw, plugin->srcpad_caps_is_raw);
     if (!vpp->filter) {
       goto done;
       success = FALSE;
     }
 
-    gst_mfx_filter_set_frame_info_from_gst_video_info(vpp->filter,
+    gst_mfx_filter_set_frame_info_from_gst_video_info (vpp->filter,
       &vpp->sinkpad_info);
   }
 
@@ -501,37 +500,37 @@ gst_mfxpostproc_ensure_filter (GstMfxPostproc * vpp)
   }
 
 done:
-  gst_mfx_task_replace(&task, NULL);
+  gst_mfx_task_replace (&task, NULL);
   return success;
 }
 
 static gboolean
-video_info_changed(GstVideoInfo * old_vip, GstVideoInfo * new_vip)
+video_info_changed (GstVideoInfo * old_vip, GstVideoInfo * new_vip)
 {
-	if (GST_VIDEO_INFO_FORMAT(old_vip) != GST_VIDEO_INFO_FORMAT(new_vip))
-		return TRUE;
-	if (GST_VIDEO_INFO_WIDTH(old_vip) != GST_VIDEO_INFO_WIDTH(new_vip))
-		return TRUE;
-	if (GST_VIDEO_INFO_HEIGHT(old_vip) != GST_VIDEO_INFO_HEIGHT(new_vip))
-		return TRUE;
-	return FALSE;
+  if (GST_VIDEO_INFO_FORMAT (old_vip) != GST_VIDEO_INFO_FORMAT (new_vip))
+    return TRUE;
+  if (GST_VIDEO_INFO_WIDTH (old_vip) != GST_VIDEO_INFO_WIDTH (new_vip))
+    return TRUE;
+  if (GST_VIDEO_INFO_HEIGHT (old_vip) != GST_VIDEO_INFO_HEIGHT (new_vip))
+    return TRUE;
+  return FALSE;
 }
 
-gboolean
-video_info_update(GstCaps * caps, GstVideoInfo * info,
-	gboolean * caps_changed_ptr)
+static gboolean
+video_info_update (GstCaps * caps, GstVideoInfo * info,
+  gboolean * caps_changed_ptr)
 {
-	GstVideoInfo vi;
+  GstVideoInfo vi;
 
-	if (!gst_video_info_from_caps(&vi, caps))
-		return FALSE;
+  if (!gst_video_info_from_caps (&vi, caps))
+    return FALSE;
 
-	*caps_changed_ptr = FALSE;
-	if (video_info_changed(info, &vi)) {
-		*caps_changed_ptr = TRUE;
-		*info = vi;
-	}
-	return TRUE;
+  *caps_changed_ptr = FALSE;
+  if (video_info_changed (info, &vi)) {
+    *caps_changed_ptr = TRUE;
+    *info = vi;
+  }
+  return TRUE;
 }
 
 static gboolean
@@ -965,7 +964,7 @@ gst_mfxpostproc_create (GstMfxPostproc * vpp)
     gst_mfx_filter_set_framerate (vpp->filter, vpp->fps_n, vpp->fps_d);
   }
 
-  return gst_mfx_filter_prepare(vpp->filter);
+  return gst_mfx_filter_prepare (vpp->filter);
 }
 
 static gboolean
@@ -1038,7 +1037,6 @@ gst_mfxpostproc_finalize (GObject * object)
   G_OBJECT_CLASS (gst_mfxpostproc_parent_class)->finalize (object);
 }
 
-
 static void
 gst_mfxpostproc_set_property (GObject * object,
     guint prop_id, const GValue * value, GParamSpec * pspec)
@@ -1062,7 +1060,7 @@ gst_mfxpostproc_set_property (GObject * object,
       vpp->keep_aspect = g_value_get_boolean (value);
       break;
     case PROP_DEINTERLACE_MODE:
-      vpp->deinterlace_mode = g_value_get_enum(value);
+      vpp->deinterlace_mode = g_value_get_enum (value);
       break;
     case PROP_DEINTERLACE_METHOD:
       vpp->deinterlace_method = g_value_get_enum (value);
@@ -1146,7 +1144,7 @@ gst_mfxpostproc_get_property (GObject * object,
       g_value_set_enum (value, vpp->deinterlace_mode);
       break;
     case PROP_DEINTERLACE_METHOD:
-      g_value_set_enum(value, vpp->deinterlace_method);
+      g_value_set_enum (value, vpp->deinterlace_method);
       break;
     case PROP_DENOISE:
       g_value_set_uint (value, vpp->denoise_level);
@@ -1181,7 +1179,6 @@ gst_mfxpostproc_get_property (GObject * object,
       break;
   }
 }
-
 
 static void
 gst_mfxpostproc_class_init (GstMfxPostprocClass * klass)

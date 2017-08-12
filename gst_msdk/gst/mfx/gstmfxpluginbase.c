@@ -87,13 +87,10 @@ gst_mfx_plugin_base_init (GstMfxPluginBase * plugin,
   /* sink pad */
   plugin->sinkpad = gst_element_get_static_pad (GST_ELEMENT (plugin), "sink");
   gst_video_info_init (&plugin->sinkpad_info);
-  plugin->sinkpad_query = GST_PAD_QUERYFUNC (plugin->sinkpad);
 
   /* src pad */
-  if (!(GST_OBJECT_FLAGS (plugin) & GST_ELEMENT_FLAG_SINK)) {
+  if (!(GST_OBJECT_FLAGS (plugin) & GST_ELEMENT_FLAG_SINK))
     plugin->srcpad = gst_element_get_static_pad (GST_ELEMENT (plugin), "src");
-    plugin->srcpad_query = GST_PAD_QUERYFUNC (plugin->srcpad);
-  }
   gst_video_info_init (&plugin->srcpad_info);
 }
 
@@ -348,7 +345,7 @@ gst_mfx_plugin_base_propose_allocation (GstMfxPluginBase * plugin,
 
       gst_buffer_pool_config_add_option (config,
           GST_BUFFER_POOL_OPTION_DMABUF_MEMORY);
-      if (!gst_buffer_pool_set_config(plugin->sinkpad_buffer_pool, config)) {
+      if (!gst_buffer_pool_set_config (plugin->sinkpad_buffer_pool, config)) {
         GST_ERROR_OBJECT(plugin, "failed to reset buffer pool config");
         return FALSE;
       }
@@ -380,8 +377,6 @@ gst_mfx_plugin_base_set_pool_config (GstBufferPool * pool, const gchar * option)
  * gst_mfx_plugin_base_decide_allocation:
  * @plugin: a #GstMfxPluginBase
  * @query: the allocation query to parse
- * @feature: the desired #GstMfxCapsFeature, or zero to find the
- *   preferred one
  *
  * Decides allocation parameters for the downstream elements.
  *
@@ -661,7 +656,7 @@ gst_mfx_plugin_base_export_dma_buffer (GstMfxPluginBase * plugin,
   if (!vmeta)
     return FALSE;
   surface = gst_mfx_video_meta_get_surface (vmeta);
-  if (!surface || !gst_mfx_surface_has_video_memory(surface))
+  if (!surface || !gst_mfx_surface_has_video_memory (surface))
     return FALSE;
 
   dmabuf_proxy = gst_mfx_prime_buffer_proxy_new_from_surface (surface);
@@ -681,7 +676,7 @@ gst_mfx_plugin_base_export_dma_buffer (GstMfxPluginBase * plugin,
       g_quark_from_static_string ("GstMfxPrimeBufferProxy"), dmabuf_proxy,
       (GDestroyNotify) gst_mfx_prime_buffer_proxy_unref);
 
-  buf = gst_buffer_copy(outbuf);
+  buf = gst_buffer_copy (outbuf);
   gst_buffer_prepend_memory (buf, gst_buffer_get_memory (outbuf, 0));
   gst_buffer_add_parent_buffer_meta (outbuf, buf);
   gst_buffer_replace_memory (outbuf, 0, mem);
@@ -694,7 +689,7 @@ gst_mfx_plugin_base_export_dma_buffer (GstMfxPluginBase * plugin,
     meta->stride[i] = vaapi_image_get_pitch (image, i);
   }
 
-  vaapi_image_unref(image);
+  vaapi_image_unref (image);
   return TRUE;
   /* ERRORS */
 error_dmabuf_handle:

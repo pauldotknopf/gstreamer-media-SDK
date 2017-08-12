@@ -76,16 +76,12 @@ typedef struct _GstMfxPluginBaseClass GstMfxPluginBaseClass;
   (GST_MFX_PLUGIN_BASE(plugin)->sinkpad_caps)
 #define GST_MFX_PLUGIN_BASE_SINK_PAD_INFO(plugin) \
   (&GST_MFX_PLUGIN_BASE(plugin)->sinkpad_info)
-#define GST_MFX_PLUGIN_BASE_SINK_PAD_QUERYFUNC (plugin) \
-  (GST_MFX_PLUGIN_BASE(plugin)->sinkpad_query)
 #define GST_MFX_PLUGIN_BASE_SRC_PAD(plugin) \
   (GST_MFX_PLUGIN_BASE(plugin)->srcpad)
 #define GST_MFX_PLUGIN_BASE_SRC_PAD_CAPS(plugin) \
   (GST_MFX_PLUGIN_BASE(plugin)->srcpad_caps)
 #define GST_MFX_PLUGIN_BASE_SRC_PAD_INFO(plugin) \
   (&GST_MFX_PLUGIN_BASE(plugin)->srcpad_info)
-#define GST_MFX_PLUGIN_BASE_SRC_PAD_QUERYFYNC(plugin) \
-  (GST_MFX_PLUGIN_BASE(plugin)->srcpad_query)
 
 #define GST_MFX_PLUGIN_BASE_AGGREGATOR(plugin) \
   (GST_MFX_PLUGIN_BASE(plugin)->aggregator)
@@ -118,9 +114,6 @@ struct _GstMfxPluginBase
   gboolean              srcpad_caps_is_raw;
   GstVideoInfo          srcpad_info;
   GstBufferPool        *srcpad_buffer_pool;
-
-  GstPadQueryFunction   srcpad_query;
-  GstPadQueryFunction   sinkpad_query;
 
   gboolean              sinkpad_has_dmabuf;
   gboolean              srcpad_has_dmabuf;
