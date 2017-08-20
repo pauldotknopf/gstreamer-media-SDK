@@ -28,7 +28,12 @@
 #include <gst/video/gstvideoencoder.h>
 #include <gst/video/gstvideosink.h>
 
+#ifdef HAVE_GST_GL_LIBS
+# include <gst/gl/gstglcontext.h>
+#endif // HAVE_GST_GL_LIBS
+
 #include <gst-libs/mfx/gstmfxtaskaggregator.h>
+#include <gst-libs/mfx/gstmfxsurface.h>
 
 G_BEGIN_DECLS
 
@@ -116,8 +121,15 @@ struct _GstMfxPluginBase
   GstBufferPool        *srcpad_buffer_pool;
 
   gboolean              sinkpad_has_dmabuf;
-  gboolean              srcpad_has_dmabuf;
-  GstAllocator         *dmabuf_allocator;
+  gboolean              can_export_gl_textures;
+
+#ifdef HAVE_GST_GL_LIBS
+  GstGLContext         *gl_context;
+#ifdef WITH_D3D11_BACKEND
+  gboolean              sinkpad_has_dxgl_interop;//TODO
+  HANDLE                gl_context_dxgl_handle;
+#endif // WITH_D3D11_BACKEND
+#endif
 
   GstMfxTaskAggregator *aggregator;
 };
@@ -172,11 +184,9 @@ GstFlowReturn
 gst_mfx_plugin_base_get_input_buffer (GstMfxPluginBase * plugin,
     GstBuffer * inbuf, GstBuffer ** outbuf_ptr);
 
-#ifdef WITH_LIBVA_BACKEND
 gboolean
-gst_mfx_plugin_base_export_dma_buffer (GstMfxPluginBase * plugin,
-    GstBuffer * outbuf);
-#endif // WITH_LIBVA_BACKEND
+gst_mfx_plugin_base_export_surface_to_gl (GstMfxPluginBase * plugin,
+    GstMfxSurface * surface, GstBuffer * outbuf);
 
 
 G_END_DECLS

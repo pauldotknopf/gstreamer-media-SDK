@@ -52,7 +52,11 @@ static const char gst_mfxpostproc_sink_caps_str[] =
     GST_VIDEO_CAPS_MAKE (GST_MFX_SUPPORTED_INPUT_FORMATS);
 
 static const char gst_mfxpostproc_src_caps_str[] =
-  GST_MFX_MAKE_OUTPUT_SURFACE_CAPS "; "
+GST_MFX_MAKE_OUTPUT_SURFACE_CAPS "; "
+#ifdef HAVE_GST_GL_LIBS
+GST_VIDEO_CAPS_MAKE_WITH_FEATURES(
+  GST_CAPS_FEATURE_MEMORY_GL_MEMORY, "{ RGBA, BGRA }") ";"
+#endif
   GST_VIDEO_CAPS_MAKE (GST_MFX_SUPPORTED_OUTPUT_FORMATS);
 
 static GstStaticPadTemplate gst_mfxpostproc_sink_factory =
@@ -427,7 +431,7 @@ gst_mfxpostproc_destroy (GstMfxPostproc * vpp)
 static gboolean
 gst_mfxpostproc_ensure_filter (GstMfxPostproc * vpp)
 {
-  GstMfxPluginBase *plugin = GST_MFX_PLUGIN_BASE (vpp);
+  GstMfxPluginBase *const plugin = GST_MFX_PLUGIN_BASE (vpp);
   gboolean success = TRUE;
   GstMfxTask *task;
 
@@ -439,8 +443,6 @@ gst_mfxpostproc_ensure_filter (GstMfxPostproc * vpp)
 
   task = gst_mfx_task_aggregator_get_last_task (plugin->aggregator);
 
-  plugin->srcpad_caps_is_raw = FALSE;
-
   if (!plugin->sinkpad_caps_is_raw
       && gst_mfx_task_has_type (task, GST_MFX_TASK_DECODER)) {
     mfxFrameAllocRequest *request = gst_mfx_task_get_request (task);
@@ -448,8 +450,7 @@ gst_mfxpostproc_ensure_filter (GstMfxPostproc * vpp)
     plugin->sinkpad_caps_is_raw = !gst_mfx_task_has_video_memory (task);
 
     vpp->filter = gst_mfx_filter_new_with_task (plugin->aggregator,
-      task, GST_MFX_TASK_VPP_IN,
-      plugin->sinkpad_caps_is_raw, plugin->srcpad_caps_is_raw);
+      task, GST_MFX_TASK_VPP_IN, plugin->sinkpad_caps_is_raw, FALSE);
     if (!vpp->filter) {
       goto done;
       success = FALSE;
@@ -475,7 +476,7 @@ gst_mfxpostproc_ensure_filter (GstMfxPostproc * vpp)
   }
   else {
     vpp->filter = gst_mfx_filter_new (plugin->aggregator,
-        plugin->sinkpad_caps_is_raw, plugin->srcpad_caps_is_raw);
+        plugin->sinkpad_caps_is_raw, FALSE);
     if (!vpp->filter) {
       goto done;
       success = FALSE;
@@ -633,11 +634,43 @@ gst_mfxpostproc_before_transform (GstBaseTransform * trans,
   }
 }
 
+static gboolean
+ensure_allowed_sinkpad_caps (GstMfxPostproc * vpp)
+{
+  if (vpp->allowed_sinkpad_caps)
+    return TRUE;
+
+  vpp->allowed_sinkpad_caps =
+    gst_static_pad_template_get_caps (&gst_mfxpostproc_sink_factory);
+  if (!vpp->allowed_sinkpad_caps) {
+    GST_ERROR_OBJECT (vpp, "failed to create MFX sink caps");
+    return FALSE;
+  }
+  return TRUE;
+}
+
+static gboolean
+ensure_allowed_srcpad_caps (GstMfxPostproc * vpp)
+{
+  if (vpp->allowed_srcpad_caps)
+    return TRUE;
+
+  /* Create initial caps from pad template */
+  vpp->allowed_srcpad_caps =
+    gst_caps_from_string (gst_mfxpostproc_src_caps_str);
+  if (!vpp->allowed_srcpad_caps) {
+    GST_ERROR_OBJECT (vpp, "failed to create MFX src caps");
+    return FALSE;
+  }
+  return TRUE;
+}
+
 static GstFlowReturn
 gst_mfxpostproc_transform (GstBaseTransform * trans, GstBuffer * inbuf,
     GstBuffer * outbuf)
 {
   GstMfxPostproc *const vpp = GST_MFXPOSTPROC (trans);
+  GstMfxPluginBase *const plugin = GST_MFX_PLUGIN_BASE (vpp);
   GstMfxVideoMeta *inbuf_meta, *outbuf_meta;
   GstMfxSurface *surface, *out_surface;
   GstMfxFilterStatus status = GST_MFX_FILTER_STATUS_SUCCESS;
@@ -648,8 +681,7 @@ gst_mfxpostproc_transform (GstBaseTransform * trans, GstBuffer * inbuf,
 
   timestamp = GST_BUFFER_TIMESTAMP (inbuf);
 
-  ret = gst_mfx_plugin_base_get_input_buffer (GST_MFX_PLUGIN_BASE (vpp),
-          inbuf, &buf);
+  ret = gst_mfx_plugin_base_get_input_buffer (plugin, inbuf, &buf);
   if (GST_FLOW_OK != ret)
     return ret;
 
@@ -673,15 +705,31 @@ gst_mfxpostproc_transform (GstBaseTransform * trans, GstBuffer * inbuf,
         && GST_MFX_FILTER_STATUS_ERROR_MORE_DATA != status)
       goto error_process_vpp;
 
-    if (GST_MFX_FILTER_STATUS_ERROR_MORE_SURFACE == status)
-      outbuf_meta = gst_buffer_get_mfx_video_meta (buf);
-    else
-      outbuf_meta = gst_buffer_get_mfx_video_meta (outbuf);
+#ifdef HAVE_GST_GL_LIBS
+    if (plugin->can_export_gl_textures) {
+      if (GST_MFX_FILTER_STATUS_ERROR_MORE_SURFACE == status) {
+        gst_mfx_plugin_base_export_surface_to_gl (plugin,
+          out_surface, buf);
+      }
+      else {
+        gst_mfx_plugin_base_export_surface_to_gl (plugin,
+          out_surface, outbuf);
+      }
+    }
+    else {
+#endif
+      if (GST_MFX_FILTER_STATUS_ERROR_MORE_SURFACE == status)
+        outbuf_meta = gst_buffer_get_mfx_video_meta (buf);
+      else
+        outbuf_meta = gst_buffer_get_mfx_video_meta (outbuf);
 
-    if (!outbuf_meta)
-      goto error_create_meta;
+      if (!outbuf_meta)
+        goto error_create_meta;
 
-    gst_mfx_video_meta_set_surface (outbuf_meta, out_surface);
+      gst_mfx_video_meta_set_surface (outbuf_meta, out_surface);
+#ifdef HAVE_GST_GL_LIBS
+    }
+#endif
     crop_rect = gst_mfx_surface_get_crop_rect (out_surface);
     if (crop_rect) {
       GstVideoCropMeta *const crop_meta =
@@ -716,10 +764,6 @@ gst_mfxpostproc_transform (GstBaseTransform * trans, GstBuffer * inbuf,
     }
   } while (GST_MFX_FILTER_STATUS_ERROR_MORE_SURFACE == status
            && GST_FLOW_OK == ret);
-
-#ifdef WITH_LIBVA_BACKEND
-  gst_mfx_plugin_base_export_dma_buffer (GST_MFX_PLUGIN_BASE (vpp), outbuf);
-#endif
 
   gst_buffer_unref (buf);
   return ret;
@@ -765,48 +809,19 @@ gst_mfxpostproc_decide_allocation (GstBaseTransform * trans, GstQuery * query)
       query);
 }
 
-static gboolean
-ensure_allowed_sinkpad_caps (GstMfxPostproc * vpp)
-{
-  if (vpp->allowed_sinkpad_caps)
-    return TRUE;
-
-  vpp->allowed_sinkpad_caps =
-      gst_static_pad_template_get_caps (&gst_mfxpostproc_sink_factory);
-  if (!vpp->allowed_sinkpad_caps) {
-    GST_ERROR_OBJECT (vpp, "failed to create MFX sink caps");
-    return FALSE;
-  }
-  return TRUE;
-}
-
-static gboolean
-ensure_allowed_srcpad_caps (GstMfxPostproc * vpp)
-{
-  if (vpp->allowed_srcpad_caps)
-    return TRUE;
-
-  /* Create initial caps from pad template */
-  vpp->allowed_srcpad_caps =
-      gst_caps_from_string (gst_mfxpostproc_src_caps_str);
-  if (!vpp->allowed_srcpad_caps) {
-    GST_ERROR_OBJECT (vpp, "failed to create MFX src caps");
-    return FALSE;
-  }
-  return TRUE;
-}
-
 static GstCaps *
 gst_mfxpostproc_transform_caps_impl (GstBaseTransform * trans,
     GstPadDirection direction, GstCaps * caps)
 {
   GstMfxPostproc *const vpp = GST_MFXPOSTPROC (trans);
+  GstMfxPluginBase *const plugin = GST_MFX_PLUGIN_BASE (vpp);
   GstVideoInfo vi, peer_vi;
   GstVideoFormat out_format;
   GstCaps *out_caps, *peer_caps;
   GstMfxCapsFeature feature;
   const gchar *feature_str;
   guint width, height;
+  gboolean has_gl_texture_sharing = FALSE;
 
   /* Generate the sink pad caps, that could be fixated afterwards */
   if (direction == GST_PAD_SRC) {
@@ -872,13 +887,25 @@ gst_mfxpostproc_transform_caps_impl (GstBaseTransform * trans,
   if (peer_caps)
     gst_caps_unref (peer_caps);
 
+#ifdef HAVE_GST_GL_LIBS
+  has_gl_texture_sharing =
+    gst_mfx_check_gl_texture_sharing (GST_ELEMENT (vpp),
+      GST_BASE_TRANSFORM_SRC_PAD (trans), &plugin->gl_context);
+
+  /* No need to defer GL export decison to gst_mfx_plugin_base_decide_allocation()
+  * if we already have a GL context */
+  if (plugin->gl_context)
+    plugin->can_export_gl_textures = has_gl_texture_sharing;
+#endif
+
   feature =
 #if GST_CHECK_VERSION(1,9,1)
       gst_mfx_find_preferred_caps_feature (GST_BASE_TRANSFORM_SRC_PAD (trans),
-        GST_VIDEO_INFO_FORMAT(&vi) == GST_VIDEO_FORMAT_P010_10LE, &out_format);
+        GST_VIDEO_INFO_FORMAT (&vi) == GST_VIDEO_FORMAT_P010_10LE,
+        has_gl_texture_sharing, &out_format);
 #else
       gst_mfx_find_preferred_caps_feature (GST_BASE_TRANSFORM_SRC_PAD (trans),
-        FALSE, &out_format);
+        FALSE, has_gl_texture_sharing, &out_format);
 #endif
   gst_video_info_change_format (&vi, out_format, width, height);
 

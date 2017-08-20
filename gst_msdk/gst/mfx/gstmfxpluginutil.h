@@ -24,8 +24,11 @@
 #define GST_MFX_PLUGIN_UTIL_H
 
 #include "gstmfxvideomemory.h"
-
 #include <gst-libs/mfx/gstmfxtaskaggregator.h>
+
+#ifdef HAVE_GST_GL_LIBS
+# include <gst/gl/gstglcontext.h>
+#endif // HAVE_GST_GL_LIBS
 
  /* Helpers to build video caps */
 typedef enum
@@ -33,6 +36,7 @@ typedef enum
   GST_MFX_CAPS_FEATURE_NOT_NEGOTIATED,
   GST_MFX_CAPS_FEATURE_SYSTEM_MEMORY,
   GST_MFX_CAPS_FEATURE_MFX_SURFACE,
+  GST_MFX_CAPS_FEATURE_GL_MEMORY,
 } GstMfxCapsFeature;
 
 #ifdef WITH_LIBVA_BACKEND
@@ -56,7 +60,8 @@ typedef enum
 
 # define GST_MFX_MAKE_OUTPUT_SURFACE_CAPS       \
     GST_VIDEO_CAPS_MAKE_WITH_FEATURES(          \
-    GST_CAPS_FEATURE_MEMORY_MFX_SURFACE, "{ NV12, BGRA, P010_10LE, ENCODED }")
+    GST_CAPS_FEATURE_MEMORY_MFX_SURFACE,        \
+      "{ NV12, BGRA, P010_10LE, ENCODED }")
 
 # define GST_MFX_SUPPORTED_INPUT_FORMATS \
     "{ NV12, YV12, I420, YUY2, P010_10LE, BGRA, BGRx }"
@@ -78,15 +83,25 @@ GstCaps *
 gst_mfx_video_format_new_template_caps_with_features (GstVideoFormat format,
   const gchar * features_string);
 
+#ifdef HAVE_GST_GL_LIBS
+gboolean
+gst_mfx_check_gl_texture_sharing (GstElement * element,
+  GstPad * pad, GstGLContext ** gl_context_ptr);
+#endif
+
 GstMfxCapsFeature
 gst_mfx_find_preferred_caps_feature (GstPad * pad,
-  gboolean use_10bpc, GstVideoFormat * out_format_ptr);
+  gboolean use_10bpc, gboolean has_gl_texture_sharing,
+  GstVideoFormat * out_format_ptr);
 
 const gchar *
 gst_mfx_caps_feature_to_string (GstMfxCapsFeature feature);
 
 gboolean
 gst_caps_has_mfx_surface (GstCaps * caps);
+
+gboolean
+gst_caps_has_gl_memory (GstCaps * caps);
 
 gboolean
 gst_mfx_query_peer_has_raw_caps (GstPad * pad);

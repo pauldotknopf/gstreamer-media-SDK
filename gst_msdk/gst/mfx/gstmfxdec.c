@@ -71,6 +71,10 @@ static const char gst_mfxdecode_sink_caps_str[] =
 
 static const char gst_mfxdecode_src_caps_str[] =
   GST_MFX_MAKE_OUTPUT_SURFACE_CAPS ";"
+#ifdef HAVE_GST_GL_LIBS
+  GST_VIDEO_CAPS_MAKE_WITH_FEATURES (
+      GST_CAPS_FEATURE_MEMORY_GL_MEMORY, "{ RGBA, BGRA }") ";"
+#endif
   GST_VIDEO_CAPS_MAKE (GST_MFX_SUPPORTED_OUTPUT_FORMATS);
 
 enum
@@ -181,6 +185,7 @@ gst_mfxdec_update_sink_caps (GstMfxDec * mfxdec, GstCaps * caps)
 static gboolean
 gst_mfxdec_update_src_caps (GstMfxDec * mfxdec)
 {
+  GstMfxPluginBase *const plugin = GST_MFX_PLUGIN_BASE (mfxdec);
   GstVideoDecoder *const vdec = GST_VIDEO_DECODER (mfxdec);
   GstVideoCodecState *state, *ref_state;
   GstVideoInfo *vi;
@@ -189,6 +194,7 @@ gst_mfxdec_update_src_caps (GstMfxDec * mfxdec)
   GstMfxCapsFeature feature;
   const mfxFrameAllocRequest *request;
   gboolean use_10bpc = FALSE;
+  gboolean has_gl_texture_sharing = FALSE;
 
   if (!mfxdec->input_state)
     return FALSE;
@@ -199,9 +205,20 @@ gst_mfxdec_update_src_caps (GstMfxDec * mfxdec)
 
   ref_state = mfxdec->input_state;
 
+#ifdef HAVE_GST_GL_LIBS
+  has_gl_texture_sharing =
+    gst_mfx_check_gl_texture_sharing (GST_ELEMENT (mfxdec),
+      GST_VIDEO_DECODER_SRC_PAD (vdec), &plugin->gl_context);
+
+  /* No need to defer GL export decison to gst_mfx_plugin_base_decide_allocation()
+   * if we already have a GL context */
+  if (plugin->gl_context)
+    plugin->can_export_gl_textures = has_gl_texture_sharing;
+#endif
+
   feature =
       gst_mfx_find_preferred_caps_feature (GST_VIDEO_DECODER_SRC_PAD (vdec),
-        use_10bpc, &output_format);
+        use_10bpc, has_gl_texture_sharing, &output_format);
 
   if (GST_MFX_CAPS_FEATURE_NOT_NEGOTIATED == feature)
     return FALSE;
@@ -209,6 +226,11 @@ gst_mfxdec_update_src_caps (GstMfxDec * mfxdec)
   if (GST_MFX_CAPS_FEATURE_MFX_SURFACE == feature)
     features =
         gst_caps_features_new (GST_CAPS_FEATURE_MEMORY_MFX_SURFACE, NULL);
+#ifdef HAVE_GST_GL_LIBS
+  else if (GST_MFX_CAPS_FEATURE_GL_MEMORY == feature)
+    features =
+        gst_caps_features_new (GST_CAPS_FEATURE_MEMORY_GL_MEMORY, NULL);
+#endif
 
   state = gst_video_decoder_set_output_state (vdec, output_format,
       ref_state->info.width, ref_state->info.height, ref_state);
@@ -246,11 +268,6 @@ gst_mfxdec_negotiate (GstMfxDec * mfxdec)
     return FALSE;
   if (!gst_video_decoder_negotiate (vdec))
     return FALSE;
-
-  /* Final check to determine if system or video memory should be used for
-   * the output of the decoder */
-  gst_mfx_decoder_should_use_video_memory (mfxdec->decoder,
-    !plugin->srcpad_caps_is_raw);
 
   mfxdec->do_renego = FALSE;
 
@@ -329,13 +346,17 @@ gst_mfxdec_create (GstMfxDec * mfxdec, GstCaps * caps)
 
   /* Increase async depth considerably when using decodebin to avoid
    * jerky video playback resulting from threading issues */
-  parent = gst_object_get_parent (GST_OBJECT(mfxdec));
-  if (parent && !GST_IS_PIPELINE (GST_ELEMENT(parent)))
+  parent = gst_object_get_parent (GST_OBJECT (mfxdec));
+  if (parent && !GST_IS_PIPELINE (GST_ELEMENT (parent)))
     is_autoplugged = TRUE;
   gst_object_replace (&parent, NULL);
 
+  plugin->srcpad_caps_is_raw =
+      gst_mfx_query_peer_has_raw_caps (GST_MFX_PLUGIN_BASE_SRC_PAD (plugin));
+
   mfxdec->decoder = gst_mfx_decoder_new (plugin->aggregator, profile, &info,
-    extradata, mfxdec->async_depth, mfxdec->live_mode, is_autoplugged);
+    extradata, mfxdec->async_depth, plugin->srcpad_caps_is_raw,
+    mfxdec->live_mode, is_autoplugged);
 
   if (extradata)
     g_byte_array_free (extradata, FALSE);
@@ -357,17 +378,28 @@ gst_mfxdec_push_decoded_frame (GstMfxDec * mfxdec, GstVideoCodecFrame * frame)
   GstMfxVideoMeta *meta;
   const GstMfxRectangle *crop_rect;
   GstMfxSurface *surface = NULL;
-  
+
   GstFlowReturn ret = gst_video_decoder_allocate_output_frame (vdec, frame);
   if (GST_FLOW_OK != ret)
     goto error_create_buffer;
 
   surface = gst_video_codec_frame_get_user_data (frame);
 
+#ifdef HAVE_GST_GL_LIBS
+  if (GST_MFX_PLUGIN_BASE (mfxdec)->can_export_gl_textures) {
+    gst_mfx_plugin_base_export_surface_to_gl (GST_MFX_PLUGIN_BASE (mfxdec),
+      surface, frame->output_buffer);
+  }
+  else {
+#endif
   meta = gst_buffer_get_mfx_video_meta (frame->output_buffer);
   if (!meta)
     goto error_get_meta;
   gst_mfx_video_meta_set_surface (meta, surface);
+#ifdef HAVE_GST_GL_LIBS
+  }
+#endif //HAVE_GST_GL_LIBS
+
   crop_rect = gst_mfx_surface_get_crop_rect (surface);
   if (crop_rect) {
     GstVideoCropMeta *const crop_meta =
@@ -379,11 +411,6 @@ gst_mfxdec_push_decoded_frame (GstMfxDec * mfxdec, GstVideoCodecFrame * frame)
       crop_meta->height = crop_rect->height;
     }
   }
-
-#ifdef WITH_LIBVA_BACKEND
-  gst_mfx_plugin_base_export_dma_buffer (GST_MFX_PLUGIN_BASE (mfxdec),
-    frame->output_buffer);
-#endif // WITH_LIBVA_BACKEND
 
   return gst_video_decoder_finish_frame (vdec, frame);
   /* ERRORS */
@@ -586,8 +613,7 @@ static gboolean
 gst_mfxdec_sink_query (GstVideoDecoder * vdec, GstQuery * query)
 {
   gboolean ret = TRUE;
-  GstMfxDec *mfxdec = GST_MFXDEC (vdec);
-  GstMfxPluginBase *const plugin = GST_MFX_PLUGIN_BASE (mfxdec);
+  GstMfxPluginBase *const plugin = GST_MFX_PLUGIN_BASE (vdec);
 
   switch (GST_QUERY_TYPE (query)) {
     case GST_QUERY_CONTEXT:{
@@ -606,8 +632,7 @@ static gboolean
 gst_mfxdec_src_query (GstVideoDecoder * vdec, GstQuery * query)
 {
   gboolean ret = TRUE;
-  GstMfxDec *mfxdec = GST_MFXDEC (vdec);
-  GstMfxPluginBase *const plugin = GST_MFX_PLUGIN_BASE (mfxdec);
+  GstMfxPluginBase *const plugin = GST_MFX_PLUGIN_BASE (vdec);
 
   switch (GST_QUERY_TYPE (query)) {
     case GST_QUERY_CAPS:{
