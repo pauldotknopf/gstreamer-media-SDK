@@ -131,7 +131,7 @@ gst_mfx_video_format_new_template_caps_with_features (GstVideoFormat format,
 #ifdef HAVE_GST_GL_LIBS
 gboolean
 gst_mfx_check_gl_texture_sharing (GstElement * element,
-  GstPad * pad, GstGLContext ** gl_context_ptr)
+    GstPad * pad, GstGLContext ** gl_context_ptr)
 {
 #if GST_CHECK_VERSION(1,11,2)
   GstCaps *out_caps, *templ = NULL;
@@ -139,9 +139,9 @@ gst_mfx_check_gl_texture_sharing (GstElement * element,
   gboolean has_gl_texture_sharing = FALSE;
   gboolean found_context = FALSE;
   const char caps_str[] =
-    GST_MFX_MAKE_OUTPUT_SURFACE_CAPS ";"
-    GST_VIDEO_CAPS_MAKE_WITH_FEATURES (
-      GST_CAPS_FEATURE_MEMORY_GL_MEMORY, "{ RGBA, BGRA }") ";";
+      GST_MFX_MAKE_OUTPUT_SURFACE_CAPS ";"
+      GST_VIDEO_CAPS_MAKE_WITH_FEATURES (GST_CAPS_FEATURE_MEMORY_GL_MEMORY,
+      "{ RGBA, BGRA }") ";";
 
   g_return_val_if_fail (GST_IS_ELEMENT (element), FALSE);
   g_return_val_if_fail (gl_context_ptr != NULL, FALSE);
@@ -152,8 +152,7 @@ gst_mfx_check_gl_texture_sharing (GstElement * element,
   templ = gst_caps_from_string (caps_str);
   in_caps = gst_pad_peer_query_caps (pad, templ);
 
-  out_caps = gst_caps_intersect_full (templ,
-    in_caps, GST_CAPS_INTERSECT_FIRST);
+  out_caps = gst_caps_intersect_full (templ, in_caps, GST_CAPS_INTERSECT_FIRST);
   gst_caps_unref (templ);
 
   /* if peer caps can negotiate MFX surfaces, don't use GL sharing */
@@ -161,14 +160,14 @@ gst_mfx_check_gl_texture_sharing (GstElement * element,
     goto done;
 
   found_context =
-    gst_gl_query_local_gl_context (element, GST_PAD_SRC, gl_context_ptr);
+      gst_gl_query_local_gl_context (element, GST_PAD_SRC, gl_context_ptr);
 
   if (found_context) {
 #ifdef WITH_LIBVA_BACKEND
     has_gl_texture_sharing =
-      !(gst_gl_context_get_gl_api (*gl_context_ptr) & GST_GL_API_GLES1)
-      && gst_gl_context_check_feature (*gl_context_ptr,
-          "EGL_EXT_image_dma_buf_import");
+        !(gst_gl_context_get_gl_api (*gl_context_ptr) & GST_GL_API_GLES1)
+        && gst_gl_context_check_feature (*gl_context_ptr,
+        "EGL_EXT_image_dma_buf_import");
 #else
     /*
      * TODO: should ideally check for "WGL_NV_DX_interop2")
@@ -178,7 +177,7 @@ gst_mfx_check_gl_texture_sharing (GstElement * element,
      * on all intel graphics since Sandy Bridge era.
      */
     has_gl_texture_sharing =
-      gst_gl_context_check_feature (*gl_context_ptr, "GL_INTEL_map_texture");
+        gst_gl_context_check_feature (*gl_context_ptr, "GL_INTEL_map_texture");
 #endif
   }
 
@@ -196,8 +195,8 @@ done:
 
 GstMfxCapsFeature
 gst_mfx_find_preferred_caps_feature (GstPad * pad,
-  gboolean use_10bpc, gboolean has_gl_texture_sharing,
-  GstVideoFormat * out_format_ptr)
+    gboolean use_10bpc, gboolean has_gl_texture_sharing,
+    GstVideoFormat * out_format_ptr)
 {
   GstMfxCapsFeature feature = GST_MFX_CAPS_FEATURE_SYSTEM_MEMORY;
   guint num_structures;
@@ -210,24 +209,22 @@ gst_mfx_find_preferred_caps_feature (GstPad * pad,
   /* Prefer 10-bit color format when requested */
   if (use_10bpc) {
 #if GST_CHECK_VERSION(1,9,1)
-    const char caps_str[] = GST_VIDEO_CAPS_MAKE_WITH_FEATURES (
-      GST_CAPS_FEATURE_MEMORY_MFX_SURFACE, "{ ENCODED, P010_10LE, NV12, BGRA }"
-      ) "; "
-      GST_VIDEO_CAPS_MAKE("{ P010_10LE, NV12, BGRA }");
+    const char caps_str[] =
+        GST_VIDEO_CAPS_MAKE_WITH_FEATURES (GST_CAPS_FEATURE_MEMORY_MFX_SURFACE,
+        "{ ENCODED, P010_10LE, NV12, BGRA }") "; "
+        GST_VIDEO_CAPS_MAKE ("{ P010_10LE, NV12, BGRA }");
 #else
     const char caps_str[] =
-      GST_MFX_MAKE_OUTPUT_SURFACE_CAPS ";"
-      GST_VIDEO_CAPS_MAKE (GST_MFX_SUPPORTED_OUTPUT_FORMATS);
+        GST_MFX_MAKE_OUTPUT_SURFACE_CAPS ";"
+        GST_VIDEO_CAPS_MAKE (GST_MFX_SUPPORTED_OUTPUT_FORMATS);
 #endif
     templ = gst_caps_from_string (caps_str);
-  }
-  else {
+  } else {
     templ = gst_pad_get_pad_template_caps (pad);
   }
   in_caps = gst_pad_peer_query_caps (pad, templ);
 
-  out_caps = gst_caps_intersect_full (templ,
-      in_caps, GST_CAPS_INTERSECT_FIRST);
+  out_caps = gst_caps_intersect_full (templ, in_caps, GST_CAPS_INTERSECT_FIRST);
   gst_caps_unref (templ);
   if (!out_caps) {
     feature = GST_MFX_CAPS_FEATURE_NOT_NEGOTIATED;
@@ -253,11 +250,10 @@ gst_mfx_find_preferred_caps_feature (GstPad * pad,
     GstCapsFeatures *const features = gst_caps_get_features (out_caps, i);
 
     if (!gst_caps_features_contains (features,
-          gst_mfx_caps_feature_to_string (feature)))
+            gst_mfx_caps_feature_to_string (feature)))
       continue;
 
-    structure =
-      gst_structure_copy (gst_caps_get_structure (out_caps, i));
+    structure = gst_structure_copy (gst_caps_get_structure (out_caps, i));
     if (!structure)
       goto cleanup;
     if (gst_structure_has_field (structure, "format"))
@@ -349,7 +345,7 @@ gst_mfx_query_peer_has_raw_caps (GstPad * srcpad)
 #ifdef HAVE_GST_GL_LIBS
       || gst_caps_has_gl_memory (caps)
 #endif
-    )
+      )
     has_raw_caps = FALSE;
 
   gst_caps_unref (caps);
@@ -380,38 +376,54 @@ gst_mfx_is_mfx_supported (mfxU16 * platform_code)
   mfxSession session = NULL;
   mfxIMPL impl = MFX_IMPL_HARDWARE_ANY;
   mfxVersion ver = { { GST_MFX_MIN_MSDK_VERSION_MINOR,
-    GST_MFX_MIN_MSDK_VERSION_MAJOR } };
+      GST_MFX_MIN_MSDK_VERSION_MAJOR }
+  };
 
 #if MSDK_CHECK_VERSION(1,19)
   mfxPlatform platform = { 0 };
-#endif
+#endif // MSDK_CHECK_VERSION
 
-#if WITH_D3D11_BACKEND
+#ifdef WITH_D3D11_BACKEND
   impl |= MFX_IMPL_VIA_D3D11;
-#endif
+#endif // WITH_D3D11_BACKEND
 
   sts = MFXInit (impl, &ver, &session);
   if (sts != MFX_ERR_NONE) {
     return FALSE;
   }
-
 #if MSDK_CHECK_VERSION(1,19)
   if (platform_code == NULL)
     goto cleanup;
 
   sts = MFXQueryVersion (session, &ver);
   if (sts != MFX_ERR_NONE) {
-    GST_DEBUG ("Error querying MFX version.");
+    GST_ERROR ("Error querying MFX version.");
     goto cleanup;
   }
 
   if ((ver.Major == 1 && ver.Minor >= 19) || ver.Major > 1) {
-    sts = MFXVideoCORE_QueryPlatform (session, &platform);
-    if (sts == MFX_ERR_NONE) {
-      *platform_code = platform.CodeName;
+#ifdef WITH_LIBVA_BACKEND
+    GstMfxDisplay *display = gst_mfx_display_new ();
+    if (!display) {
+      GST_ERROR ("Failed to initialize display.");
+      goto cleanup;
     }
+    MFXVideoCORE_SetHandle (session, MFX_HANDLE_VA_DISPLAY,
+      GST_MFX_DISPLAY_VADISPLAY (display));
+#endif // WITH_LIBVA_BACKEND
+    sts = MFXVideoCORE_QueryPlatform (session, &platform);
+    if (MFX_ERR_NONE == sts) {
+      *platform_code = platform.CodeName;
+      GST_INFO ("Detected MFX platform with device code %d", *platform_code);
+    }
+    else {
+      GST_WARNING ("Platform autodetection failed with MFX status %d", sts);
+    }
+#ifdef WITH_LIBVA_BACKEND
+    gst_mfx_display_unref (display);
+#endif // WITH_LIBVA_BACKEND
   }
-#endif
+#endif // MSDK_CHECK_VERSION
 
 cleanup:
   MFXClose (session);

@@ -77,25 +77,26 @@ struct _GstMfxFilter
   mfxExtVPPDoUse vpp_use;
 };
 
-G_DEFINE_TYPE(GstMfxFilter, gst_mfx_filter, GST_TYPE_OBJECT)
+G_DEFINE_TYPE (GstMfxFilter, gst_mfx_filter, GST_TYPE_OBJECT)
 
-static const GstMfxFilterMap filter_map[] = {
-  {GST_MFX_FILTER_DEINTERLACING, MFX_EXTBUFF_VPP_DEINTERLACING,
-      "Deinterlacing filter"},
-  {GST_MFX_FILTER_PROCAMP, MFX_EXTBUFF_VPP_PROCAMP, "ProcAmp filter"},
-  {GST_MFX_FILTER_DETAIL, MFX_EXTBUFF_VPP_DETAIL, "Detail filter"},
-  {GST_MFX_FILTER_DENOISE, MFX_EXTBUFF_VPP_DENOISE, "Denoise filter"},
-  {GST_MFX_FILTER_FRAMERATE_CONVERSION, MFX_EXTBUFF_VPP_FRAME_RATE_CONVERSION,
-      "Framerate conversion filter"},
+     static const GstMfxFilterMap filter_map[] = {
+       {GST_MFX_FILTER_DEINTERLACING, MFX_EXTBUFF_VPP_DEINTERLACING,
+           "Deinterlacing filter"},
+       {GST_MFX_FILTER_PROCAMP, MFX_EXTBUFF_VPP_PROCAMP, "ProcAmp filter"},
+       {GST_MFX_FILTER_DETAIL, MFX_EXTBUFF_VPP_DETAIL, "Detail filter"},
+       {GST_MFX_FILTER_DENOISE, MFX_EXTBUFF_VPP_DENOISE, "Denoise filter"},
+       {GST_MFX_FILTER_FRAMERATE_CONVERSION,
+             MFX_EXTBUFF_VPP_FRAME_RATE_CONVERSION,
+           "Framerate conversion filter"},
 #if 0
-  {GST_MFX_FILTER_FIELD_PROCESSING, MFX_EXTBUFF_VPP_FIELD_PROCESSING,
-      "Field processing filter"},
-  { GST_MFX_FILTER_IMAGE_STABILIZATION, MFX_EXTBUFF_VPP_IMAGE_STABILIZATION,
-      "Image stabilization filter" },
+       {GST_MFX_FILTER_FIELD_PROCESSING, MFX_EXTBUFF_VPP_FIELD_PROCESSING,
+           "Field processing filter"},
+       {GST_MFX_FILTER_IMAGE_STABILIZATION, MFX_EXTBUFF_VPP_IMAGE_STABILIZATION,
+           "Image stabilization filter"},
 #endif
-  {GST_MFX_FILTER_ROTATION, MFX_EXTBUFF_VPP_ROTATION, "Rotation filter"},
-  {0,}
-};
+       {GST_MFX_FILTER_ROTATION, MFX_EXTBUFF_VPP_ROTATION, "Rotation filter"},
+       {0,}
+     };
 
 void
 gst_mfx_filter_set_frame_info (GstMfxFilter * filter, mfxFrameInfo * info)
@@ -129,7 +130,7 @@ gst_mfx_filter_set_frame_info_from_gst_video_info (GstMfxFilter * filter,
   filter->frame_info.AspectRatioW = info->par_n;
   filter->frame_info.AspectRatioH = info->par_d;
   filter->frame_info.BitDepthChroma = filter->frame_info.BitDepthLuma =
-    (MFX_FOURCC_P010 == filter->frame_info.FourCC) ? 10 : 8;
+      (MFX_FOURCC_P010 == filter->frame_info.FourCC) ? 10 : 8;
 
   filter->frame_info.Width = GST_ROUND_UP_16 (info->width);
   filter->frame_info.Height =
@@ -149,7 +150,7 @@ check_supported_filters (GstMfxFilter * filter)
   filter->supported_filters = GST_MFX_FILTER_NONE;
 
   vpp_use.NumAlg = 1;
-  vpp_use.AlgList = g_slice_alloc ( 1 * sizeof (mfxU32));
+  vpp_use.AlgList = g_slice_alloc (1 * sizeof (mfxU32));
   vpp_use.Header.BufferId = MFX_EXTBUFF_VPP_DOUSE;
   param.NumExtParam = 1;
 
@@ -167,7 +168,7 @@ check_supported_filters (GstMfxFilter * filter)
   }
 
   /* Release the resource */
-  g_slice_free1 (1 * sizeof(mfxU32), vpp_use.AlgList);
+  g_slice_free1 (1 * sizeof (mfxU32), vpp_use.AlgList);
 }
 
 static gboolean
@@ -183,14 +184,13 @@ configure_filters (GstMfxFilter * filter)
   }
 
   /* If AlgList is available when filter is already initialized
-  and if current number of filter is not equal to new number of
-  filter requested, deallocate resources when resetting */
-  if (filter->vpp_use.AlgList &&
-      (len != filter->vpp_use.NumAlg)) {
+     and if current number of filter is not equal to new number of
+     filter requested, deallocate resources when resetting */
+  if (filter->vpp_use.AlgList && (len != filter->vpp_use.NumAlg)) {
     g_slice_free1 (filter->vpp_use.NumAlg * sizeof (mfxU32),
-		filter->vpp_use.AlgList);
-	g_slice_free1(filter->params.NumExtParam * sizeof(mfxExtBuffer *),
-		filter->ext_buffer);
+        filter->vpp_use.AlgList);
+    g_slice_free1 (filter->params.NumExtParam * sizeof (mfxExtBuffer *),
+        filter->ext_buffer);
   }
   if (!len)
     return FALSE;
@@ -203,8 +203,7 @@ configure_filters (GstMfxFilter * filter)
   if (!filter->vpp_use.AlgList)
     return FALSE;
 
-  filter->ext_buffer = g_slice_alloc (
-      (len + 1) * sizeof (mfxExtBuffer *));
+  filter->ext_buffer = g_slice_alloc ((len + 1) * sizeof (mfxExtBuffer *));
   if (!filter->ext_buffer)
     return FALSE;
 
@@ -231,12 +230,12 @@ init_params (GstMfxFilter * filter)
   /* Aligned frame dimensions may differ between input and output surfaces
    * so we sanitize the input frame dimensions, since output frame dimensions
    * could have certain alignment requirements used in HEVC HW encoding */
-  if (gst_mfx_task_get_task_type(filter->vpp[1]) != GST_MFX_TASK_VPP_OUT) { // shared task
+  if (gst_mfx_task_get_task_type (filter->vpp[1]) != GST_MFX_TASK_VPP_OUT) {    // shared task
     filter->params.vpp.In.Width = GST_ROUND_UP_16 (filter->frame_info.CropW);
     filter->params.vpp.In.Height =
         (MFX_PICSTRUCT_PROGRESSIVE == filter->frame_info.PicStruct) ?
-            GST_ROUND_UP_16 (filter->frame_info.CropH) :
-            GST_ROUND_UP_32 (filter->frame_info.CropH);
+        GST_ROUND_UP_16 (filter->frame_info.CropH) :
+        GST_ROUND_UP_32 (filter->frame_info.CropH);
   }
   filter->params.vpp.Out = filter->frame_info;
 
@@ -248,8 +247,7 @@ init_params (GstMfxFilter * filter)
     filter->params.vpp.Out.CropH = filter->height;
     filter->params.vpp.Out.Height =
         (MFX_PICSTRUCT_PROGRESSIVE == filter->frame_info.PicStruct) ?
-           GST_ROUND_UP_16 (filter->height) :
-           GST_ROUND_UP_32 (filter->height);
+        GST_ROUND_UP_16 (filter->height) : GST_ROUND_UP_32 (filter->height);
   }
   if (filter->filter_op & GST_MFX_FILTER_FRAMERATE_CONVERSION &&
       (filter->fps_n && filter->fps_d)) {
@@ -259,10 +257,10 @@ init_params (GstMfxFilter * filter)
   if (filter->filter_op & GST_MFX_FILTER_DEINTERLACING) {
     gdouble frame_rate;
     /* Set up special double frame rate deinterlace mode */
-    gst_util_fraction_to_double(filter->params.vpp.In.FrameRateExtN,
-      filter->params.vpp.In.FrameRateExtD, &frame_rate);
+    gst_util_fraction_to_double (filter->params.vpp.In.FrameRateExtN,
+        filter->params.vpp.In.FrameRateExtD, &frame_rate);
     if ((filter->frame_info.PicStruct != MFX_PICSTRUCT_PROGRESSIVE)
-        && (int)(frame_rate + 0.5) == 60)
+        && (int) (frame_rate + 0.5) == 60)
       filter->params.vpp.In.FrameRateExtN /= 2;
 
     filter->params.vpp.Out.PicStruct = MFX_PICSTRUCT_PROGRESSIVE;
@@ -274,26 +272,17 @@ init_params (GstMfxFilter * filter)
       filter->params.vpp.Out.BitDepthChroma = 10;
       filter->params.vpp.Out.Shift = 1;
 
-      mfxStatus sts = MFXVideoVPP_Query(filter->session, &filter->params,
-        &filter->params);
+      mfxStatus sts = MFXVideoVPP_Query (filter->session, &filter->params,
+          &filter->params);
       if (MFX_ERR_NONE != sts)
         filter->params.vpp.Out.Shift = 0;
+    } else {
+      filter->params.vpp.Out.BitDepthLuma = 8;
+      filter->params.vpp.Out.BitDepthChroma = 8;
+      filter->params.vpp.Out.Shift = 0;
     }
   }
-  if (filter->fourcc) {
-    filter->params.vpp.Out.FourCC = filter->fourcc;
-    if (MFX_FOURCC_P010 == filter->fourcc) {
-      filter->params.vpp.Out.BitDepthLuma = 10;
-      filter->params.vpp.Out.BitDepthChroma = 10;
-      filter->params.vpp.Out.Shift = 1;
-
-      mfxStatus sts = MFXVideoVPP_Query(filter->session, &filter->params,
-        &filter->params);
-      if (MFX_ERR_NONE != sts)
-        filter->params.vpp.Out.Shift = 0;
-    }
-  }
-  configure_filters(filter);
+  configure_filters (filter);
 }
 
 gboolean
@@ -304,8 +293,7 @@ gst_mfx_filter_prepare (GstMfxFilter * filter)
 
   init_params (filter);
 
-  sts =
-      MFXVideoVPP_QueryIOSurf (filter->session, &filter->params, request);
+  sts = MFXVideoVPP_QueryIOSurf (filter->session, &filter->params, request);
   if (sts < 0) {
     GST_ERROR ("Unable to query VPP allocation request %d", sts);
     return FALSE;
@@ -321,17 +309,15 @@ gst_mfx_filter_prepare (GstMfxFilter * filter)
     req0->Type |= MFX_MEMTYPE_FROM_VPPIN;
   }
 
-  if (gst_mfx_task_get_task_type(filter->vpp[1]) == GST_MFX_TASK_VPP_OUT) {
+  if (gst_mfx_task_get_task_type (filter->vpp[1]) == GST_MFX_TASK_VPP_OUT) {
     gst_mfx_task_set_request (filter->vpp[1], &request[1]);
-  }
-  else {
+  } else {
     mfxFrameAllocRequest *req1 = gst_mfx_task_get_request (filter->vpp[1]);
     req1->NumFrameSuggested += request[1].NumFrameSuggested;
     req1->NumFrameMin = req1->NumFrameSuggested;
     req1->Type |= MFX_MEMTYPE_FROM_VPPOUT;
   }
 
-  gst_mfx_task_update_video_params(filter->vpp[1], &filter->params);
   gst_mfx_task_set_video_params (filter->vpp[1], &filter->params);
 
   return TRUE;
@@ -362,8 +348,8 @@ free_filter_op_data (gpointer data)
 
 static gboolean
 gst_mfx_filter_create (GstMfxFilter * filter,
-  GstMfxTaskAggregator * aggregator,
-  gboolean is_system_in, gboolean is_system_out)
+    GstMfxTaskAggregator * aggregator,
+    gboolean is_system_in, gboolean is_system_out)
 {
   filter->params.IOPattern |= is_system_in ?
       MFX_IOPATTERN_IN_SYSTEM_MEMORY : MFX_IOPATTERN_IN_VIDEO_MEMORY;
@@ -377,8 +363,7 @@ gst_mfx_filter_create (GstMfxFilter * filter,
       filter->vpp[1] =
           gst_mfx_task_new (filter->aggregator, GST_MFX_TASK_VPP_OUT);
       filter->session = gst_mfx_task_get_session (filter->vpp[1]);
-    }
-    else {
+    } else {
       /* is_joined is FALSE since parent task will take care of
        * disjoining / closing the session when it is destroyed */
       filter->vpp[1] = gst_mfx_task_new_with_session (filter->aggregator,
@@ -388,16 +373,11 @@ gst_mfx_filter_create (GstMfxFilter * filter,
       return FALSE;
   }
 
-  if (filter->params.IOPattern & MFX_IOPATTERN_OUT_SYSTEM_MEMORY)
-    gst_mfx_task_ensure_memtype_is_system (filter->vpp[1]);
-
   /* Initialize the array of operation data */
   filter->filter_op_data = g_ptr_array_new_with_free_func (free_filter_op_data);
 
   /* Initialize the filter flag */
   filter->filter_op = GST_MFX_FILTER_NONE;
-
-  gst_mfx_task_set_video_params (filter->vpp[1], &filter->params);
 
   return TRUE;
 }
@@ -405,15 +385,14 @@ gst_mfx_filter_create (GstMfxFilter * filter,
 static void
 gst_mfx_filter_finalize (GObject * object)
 {
-  GstMfxFilter * filter = GST_MFX_FILTER (object);
+  GstMfxFilter *filter = GST_MFX_FILTER (object);
   guint i;
 
   MFXVideoVPP_Close (filter->session);
 
   gst_mfx_surface_pool_replace (&filter->out_pool, NULL);
   /* Make sure frame allocator points to the right task to free surfaces */
-  gst_mfx_task_aggregator_set_current_task (filter->aggregator,
-    filter->vpp[1]);
+  gst_mfx_task_aggregator_set_current_task (filter->aggregator, filter->vpp[1]);
   gst_mfx_task_frame_free (filter->aggregator, &filter->response);
 
   for (i = 0; i < 2; i++)
@@ -429,22 +408,22 @@ gst_mfx_filter_finalize (GObject * object)
 }
 
 static void
-gst_mfx_filter_init(GstMfxFilter * filter)
+gst_mfx_filter_init (GstMfxFilter * filter)
 {
 }
 
 static void
-gst_mfx_filter_class_init(GstMfxFilterClass * klass)
+gst_mfx_filter_class_init (GstMfxFilterClass * klass)
 {
-  GObjectClass *const object_class = G_OBJECT_CLASS(klass);
+  GObjectClass *const object_class = G_OBJECT_CLASS (klass);
   object_class->finalize = gst_mfx_filter_finalize;
 }
 
 GstMfxFilter *
 gst_mfx_filter_new (GstMfxTaskAggregator * aggregator,
-  gboolean is_system_in, gboolean is_system_out)
+    gboolean is_system_in, gboolean is_system_out)
 {
-  GstMfxFilter * filter;
+  GstMfxFilter *filter;
 
   g_return_val_if_fail (aggregator != NULL, NULL);
 
@@ -466,9 +445,9 @@ gst_mfx_filter_new_with_task (GstMfxTaskAggregator * aggregator,
     GstMfxTask * task, GstMfxTaskType type,
     gboolean is_system_in, gboolean is_system_out)
 {
-  GstMfxFilter * filter;
-  
-  g_return_val_if_fail(aggregator != NULL, NULL);
+  GstMfxFilter *filter;
+
+  g_return_val_if_fail (aggregator != NULL, NULL);
   g_return_val_if_fail (task != NULL, NULL);
 
   filter = g_object_new (GST_TYPE_MFX_FILTER, NULL);
@@ -476,7 +455,7 @@ gst_mfx_filter_new_with_task (GstMfxTaskAggregator * aggregator,
     return NULL;
 
   filter->session = gst_mfx_task_get_session (task);
-  filter->vpp[!!(type & GST_MFX_TASK_VPP_OUT)] = gst_mfx_task_ref (task);
+  filter->vpp[! !(type & GST_MFX_TASK_VPP_OUT)] = gst_mfx_task_ref (task);
 
   gst_mfx_task_set_task_type (task, gst_mfx_task_get_task_type (task) | type);
 
@@ -500,7 +479,7 @@ gst_mfx_filter_ref (GstMfxFilter * filter)
 void
 gst_mfx_filter_unref (GstMfxFilter * filter)
 {
-  gst_object_unref (GST_OBJECT(filter));
+  gst_object_unref (GST_OBJECT (filter));
 }
 
 void
@@ -516,12 +495,10 @@ gboolean
 gst_mfx_filter_set_format (GstMfxFilter * filter, mfxU32 fourcc)
 {
   g_return_val_if_fail (filter != NULL, FALSE);
-  g_return_val_if_fail(MFX_FOURCC_NV12 == fourcc
-    || MFX_FOURCC_RGB4 == fourcc
-    || MFX_FOURCC_A2RGB10 == fourcc
-    || MFX_FOURCC_P010 == fourcc
-    , FALSE);
-  
+  g_return_val_if_fail (MFX_FOURCC_NV12 == fourcc
+      || MFX_FOURCC_RGB4 == fourcc
+      || MFX_FOURCC_A2RGB10 == fourcc || MFX_FOURCC_P010 == fourcc, FALSE);
+
   filter->fourcc = fourcc;
 
   return TRUE;
@@ -823,7 +800,7 @@ gst_mfx_filter_set_rotation (GstMfxFilter * filter, GstMfxRotation angle)
 
   g_return_val_if_fail (filter != NULL, FALSE);
   g_return_val_if_fail (angle == 0 ||
-    angle == 90 || angle == 180 || angle == 270, FALSE);
+      angle == 90 || angle == 180 || angle == 270, FALSE);
 
   op = find_filter_op_data (filter, GST_MFX_FILTER_ROTATION);
   if (NULL == op) {
@@ -858,16 +835,14 @@ gst_mfx_filter_set_deinterlace_method (GstMfxFilter * filter,
 
 #if MSDK_CHECK_VERSION(1,19)
   g_return_val_if_fail (GST_MFX_DEINTERLACE_METHOD_BOB == method
-    || GST_MFX_DEINTERLACE_METHOD_ADVANCED == method
-    || GST_MFX_DEINTERLACE_METHOD_ADVANCED_NOREF == method
-    || GST_MFX_DEINTERLACE_METHOD_ADVANCED_SCD == method
-    || GST_MFX_DEINTERLACE_METHOD_FIELD_WEAVING == method
-    , FALSE);
+      || GST_MFX_DEINTERLACE_METHOD_ADVANCED == method
+      || GST_MFX_DEINTERLACE_METHOD_ADVANCED_NOREF == method
+      || GST_MFX_DEINTERLACE_METHOD_ADVANCED_SCD == method
+      || GST_MFX_DEINTERLACE_METHOD_FIELD_WEAVING == method, FALSE);
 #else
   g_return_val_if_fail (GST_MFX_DEINTERLACE_METHOD_BOB == method
-    || GST_MFX_DEINTERLACE_METHOD_ADVANCED == method
-    || GST_MFX_DEINTERLACE_METHOD_ADVANCED_NOREF == method
-    , FALSE);
+      || GST_MFX_DEINTERLACE_METHOD_ADVANCED == method
+      || GST_MFX_DEINTERLACE_METHOD_ADVANCED_NOREF == method, FALSE);
 #endif
 
   op = find_filter_op_data (filter, GST_MFX_FILTER_DEINTERLACING);
@@ -923,15 +898,13 @@ gst_mfx_filter_set_frc_algorithm (GstMfxFilter * filter, GstMfxFrcAlgorithm alg)
   g_return_val_if_fail (filter != NULL, FALSE);
 #if 0
   g_return_val_if_fail (GST_MFX_FRC_PRESERVE_TIMESTAMP == alg
-    || GST_MFX_FRC_DISTRIBUTED_TIMESTAMP == alg
-    || GST_MFX_FRC_FRAME_INTERPOLATION == alg
-    || GST_MFX_FRC_FI_PRESERVE_TIMESTAMP == alg
-    || GST_MFX_FRC_FI_DISTRIBUTED_TIMESTAMP == alg
-    , FALSE);
+      || GST_MFX_FRC_DISTRIBUTED_TIMESTAMP == alg
+      || GST_MFX_FRC_FRAME_INTERPOLATION == alg
+      || GST_MFX_FRC_FI_PRESERVE_TIMESTAMP == alg
+      || GST_MFX_FRC_FI_DISTRIBUTED_TIMESTAMP == alg, FALSE);
 #else
   g_return_val_if_fail (GST_MFX_FRC_PRESERVE_TIMESTAMP == alg
-      || GST_MFX_FRC_DISTRIBUTED_TIMESTAMP == alg
-      , FALSE);
+      || GST_MFX_FRC_DISTRIBUTED_TIMESTAMP == alg, FALSE);
 #endif // 0
 
   op = find_filter_op_data (filter, GST_MFX_FILTER_FRAMERATE_CONVERSION);
@@ -969,8 +942,8 @@ gst_mfx_filter_reset (GstMfxFilter * filter)
 
   sts = MFXVideoVPP_Reset (filter->session, &filter->params);
   if (sts < 0) {
-      GST_ERROR ("Error resetting MFX VPP %d", sts);
-      return GST_MFX_FILTER_STATUS_ERROR_OPERATION_FAILED;
+    GST_ERROR ("Error resetting MFX VPP %d", sts);
+    return GST_MFX_FILTER_STATUS_ERROR_OPERATION_FAILED;
   }
   return GST_MFX_FILTER_STATUS_SUCCESS;
 }
@@ -982,29 +955,30 @@ gst_mfx_filter_start (GstMfxFilter * filter)
   mfxStatus sts = MFX_ERR_NONE;
   gboolean memtype_is_system;
 
-  /* Get updated video params if modified by peer MFX element*/
+  /* Get updated video params if modified by peer MFX element */
   gst_mfx_task_update_video_params (filter->vpp[1], &filter->params);
 
-  request =  gst_mfx_task_get_request (filter->vpp[1]);
+  request = gst_mfx_task_get_request (filter->vpp[1]);
   if (!request) {
-    GST_ERROR ("Unable to retrieve task parameters from VPP allocation request.");
+    GST_ERROR
+        ("Unable to retrieve task parameters from VPP allocation request.");
     return GST_MFX_FILTER_STATUS_ERROR_INVALID_PARAMETER;
   }
 
-  memtype_is_system = !(filter->params.IOPattern & MFX_IOPATTERN_OUT_VIDEO_MEMORY);
+  memtype_is_system =
+      !(filter->params.IOPattern & MFX_IOPATTERN_OUT_VIDEO_MEMORY);
   if (!memtype_is_system) {
     gst_mfx_task_use_video_memory (filter->vpp[1]);
 
     /* Make sure frame allocator points to the right task to allocate surfaces */
-    gst_mfx_task_aggregator_set_current_task(filter->aggregator,
-      filter->vpp[1]);
-    sts = gst_mfx_task_frame_alloc(filter->aggregator,
-            request, &filter->response);
+    gst_mfx_task_aggregator_set_current_task (filter->aggregator,
+        filter->vpp[1]);
+    sts = gst_mfx_task_frame_alloc (filter->aggregator,
+        request, &filter->response);
     if (MFX_ERR_NONE != sts)
       return GST_MFX_FILTER_STATUS_ERROR_ALLOCATION_FAILED;
-  }
-  else {
-	  gst_mfx_task_ensure_memtype_is_system(filter->vpp[1]);
+  } else {
+    gst_mfx_task_ensure_memtype_is_system (filter->vpp[1]);
   }
 
   filter->out_pool = gst_mfx_surface_pool_new_with_task (filter->vpp[1]);
@@ -1018,7 +992,7 @@ gst_mfx_filter_start (GstMfxFilter * filter)
   }
 
   GST_INFO ("Initialized MFX VPP output task using %s memory",
-    memtype_is_system ? "system" : "video");
+      memtype_is_system ? "system" : "video");
 
   return GST_MFX_FILTER_STATUS_SUCCESS;
 }
@@ -1051,7 +1025,7 @@ gst_mfx_filter_process (GstMfxFilter * filter, GstMfxSurface * surface,
 
     outsurf = gst_mfx_surface_get_frame_surface (*out_surface);
     sts = MFXVideoVPP_RunFrameVPPAsync (filter->session, insurf, outsurf,
-            NULL, &syncp);
+        NULL, &syncp);
 
     if (MFX_WRN_INCOMPATIBLE_VIDEO_PARAM == sts)
       sts = MFX_ERR_NONE;
@@ -1081,7 +1055,7 @@ gst_mfx_filter_process (GstMfxFilter * filter, GstMfxSurface * surface,
       do {
         sts = MFXVideoCORE_SyncOperation (filter->session, syncp, 1000);
         if (MFX_ERR_NONE != sts && sts < 0) {
-          GST_ERROR("MFXVideoCORE_SyncOperation() error status: %d", sts);
+          GST_ERROR ("MFXVideoCORE_SyncOperation() error status: %d", sts);
           return GST_MFX_FILTER_STATUS_ERROR_OPERATION_FAILED;
         }
       } while (MFX_WRN_IN_EXECUTION == sts);
