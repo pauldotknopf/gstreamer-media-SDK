@@ -138,6 +138,8 @@ close_decoder (GstMfxDecoder * decoder)
   gst_mfx_task_aggregator_set_current_task (decoder->aggregator,
       decoder->decode);
   /* calls gst_mfx_task_frame_free() when configured with video memory */
+  if (decoder->plugin_uid)
+    MFXVideoUSER_UnLoad (decoder->session, decoder->plugin_uid);
   MFXVideoDECODE_Close (decoder->session);
 }
 
@@ -145,7 +147,6 @@ static void
 gst_mfx_decoder_finalize (GObject * object)
 {
   GstMfxDecoder *decoder = GST_MFX_DECODER (object);
-  gst_mfx_filter_replace (&decoder->filter, NULL);
 
   g_byte_array_unref (decoder->bitstream);
   if (decoder->codec_data)
@@ -159,9 +160,7 @@ gst_mfx_decoder_finalize (GObject * object)
   g_queue_clear (&decoder->decoded_frames);
   g_queue_clear (&decoder->discarded_frames);
 
-  if (decoder->plugin_uid)
-    MFXVideoUSER_UnLoad (decoder->session, decoder->plugin_uid);
-
+  gst_mfx_filter_replace (&decoder->filter, NULL);
   close_decoder (decoder);
   gst_mfx_task_aggregator_unref (decoder->aggregator);
   gst_mfx_task_replace (&decoder->decode, NULL);
@@ -229,15 +228,15 @@ gst_mfx_decoder_reconfigure_params (GstMfxDecoder * decoder)
       MFX_PICSTRUCT_FIELD_BFF)
       : MFX_PICSTRUCT_PROGRESSIVE;
 
-  frame_info->Width = GST_ROUND_UP_16 (decoder->info.width);
-  if (decoder->profile.codec == MFX_CODEC_HEVC) {
-    frame_info->Height = GST_ROUND_UP_32 (decoder->info.height);
-  } else {
-    frame_info->Height =
-        (MFX_PICSTRUCT_PROGRESSIVE == frame_info->PicStruct) ?
-        GST_ROUND_UP_16 (decoder->info.height) :
-        GST_ROUND_UP_32 (decoder->info.height);
+  if (decoder->profile.codec == MFX_CODEC_VP8) {
+    frame_info->Width = GST_ROUND_UP_16 (decoder->info.width);
+    frame_info->Height = GST_ROUND_UP_16 (decoder->info.height);
   }
+  else {
+    frame_info->Width = GST_ROUND_UP_32 (decoder->info.width);
+    frame_info->Height = GST_ROUND_UP_32 (decoder->info.height);
+  }
+
   frame_info->FrameRateExtN = decoder->info.fps_n;
   frame_info->FrameRateExtD = decoder->info.fps_d;
 

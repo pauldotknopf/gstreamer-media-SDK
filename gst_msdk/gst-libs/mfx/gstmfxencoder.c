@@ -421,23 +421,13 @@ gst_mfx_encoder_set_frame_info (GstMfxEncoder * encoder)
     priv->params.mfx.FrameInfo.FrameRateExtD = priv->info.fps_d;
     priv->params.mfx.FrameInfo.AspectRatioW = priv->info.par_n;
     priv->params.mfx.FrameInfo.AspectRatioH = priv->info.par_d;
-
-    if (priv->plugin_uid && memcmp (priv->plugin_uid, &MFX_PLUGINID_HEVCE_HW,
-            sizeof (mfxPluginUID)) == 0) {
-      priv->params.mfx.FrameInfo.Width = GST_ROUND_UP_32 (priv->info.width);
-      priv->params.mfx.FrameInfo.Height = GST_ROUND_UP_32 (priv->info.height);
-    } else {
-      priv->params.mfx.FrameInfo.Width = GST_ROUND_UP_16 (priv->info.width);
-      priv->params.mfx.FrameInfo.Height =
-          MFX_PICSTRUCT_PROGRESSIVE == priv->params.mfx.FrameInfo.PicStruct ?
-          GST_ROUND_UP_16 (priv->info.height) :
-          GST_ROUND_UP_32 (priv->info.height);
-    }
+    priv->params.mfx.FrameInfo.Width = GST_ROUND_UP_32 (priv->info.width);
+    priv->params.mfx.FrameInfo.Height = GST_ROUND_UP_32 (priv->info.height);
 
     priv->frame_info = priv->params.mfx.FrameInfo;
     priv->frame_info.PicStruct =
-      GST_VIDEO_INFO_IS_INTERLACED(&priv->info) ?
-      (GST_VIDEO_INFO_FLAG_IS_SET(&priv->info, GST_VIDEO_FRAME_FLAG_TFF) ?
+      GST_VIDEO_INFO_IS_INTERLACED (&priv->info) ?
+      (GST_VIDEO_INFO_FLAG_IS_SET (&priv->info, GST_VIDEO_FRAME_FLAG_TFF) ?
         MFX_PICSTRUCT_FIELD_TFF : MFX_PICSTRUCT_FIELD_BFF) :
       MFX_PICSTRUCT_PROGRESSIVE;
     priv->frame_info.FourCC =
@@ -507,7 +497,6 @@ gst_mfx_encoder_create (GstMfxEncoder * encoder,
   goto error_invalid_vtable;                \
   } while (0)
 
-  CHECK_VTABLE_HOOK (create);
   CHECK_VTABLE_HOOK (finalize);
   CHECK_VTABLE_HOOK (get_default_properties);
 
@@ -515,8 +504,6 @@ gst_mfx_encoder_create (GstMfxEncoder * encoder,
 
   if (!gst_mfx_encoder_init_properties (encoder, aggregator, info,
           memtype_is_system))
-    return FALSE;
-  if (!klass->create (encoder))
     return FALSE;
 
   return TRUE;
@@ -543,12 +530,6 @@ gst_mfx_encoder_finalize (GObject * object)
   if (priv->properties) {
     g_ptr_array_unref (priv->properties);
     priv->properties = NULL;
-  }
-
-  if (priv->plugin_uids) {
-    MFXVideoUSER_UnLoad (priv->session, priv->plugin_uid);
-    g_ptr_array_unref (priv->plugin_uids);
-    priv->plugin_uids = NULL;
   }
 
   /* Make sure frame allocator points to the right task
@@ -901,36 +882,6 @@ gst_mfx_encoder_set_encoding_params (GstMfxEncoder * encoder)
 }
 
 static gboolean
-gst_mfx_encoder_load_plugin (GstMfxEncoder * encoder)
-{
-  GstMfxEncoderPrivate *const priv = GST_MFX_ENCODER_GET_PRIVATE (encoder);
-  mfxStatus sts = MFX_ERR_NONE;
-  guint i;
-
-  for (i = 0; i < priv->plugin_uids->len; i++) {
-    priv->plugin_uid = g_ptr_array_index (priv->plugin_uids, i);
-
-#if MSDK_CHECK_VERSION(1,19)
-    /* skip hw encoder on platforms older than skylake */
-    if (memcmp (priv->plugin_uid, &MFX_PLUGINID_HEVCE_HW,
-            sizeof (mfxPluginUID)) == 0
-        && gst_mfx_task_aggregator_get_platform (priv->aggregator)
-        < MFX_PLATFORM_SKYLAKE)
-      continue;
-#endif // MSDK_CHECK_VERSION
-
-    sts = MFXVideoUSER_Load (priv->session, priv->plugin_uid, 1);
-    if (MFX_ERR_NONE == sts) {
-      if (memcmp (priv->plugin_uid, &MFX_PLUGINID_HEVCE_SW,
-            sizeof (mfxPluginUID)) == 0)
-        priv->encoder_memtype_is_system = TRUE;
-      return TRUE;
-    }
-  }
-  return FALSE;
-}
-
-static gboolean
 configure_encoder_sharing (GstMfxEncoder * encoder)
 {
   GstMfxEncoderPrivate *const priv = GST_MFX_ENCODER_GET_PRIVATE (encoder);
@@ -1010,6 +961,7 @@ GstMfxEncoderStatus
 gst_mfx_encoder_prepare (GstMfxEncoder * encoder)
 {
   GstMfxEncoderPrivate *const priv = GST_MFX_ENCODER_GET_PRIVATE (encoder);
+  GstMfxEncoderClass *const klass = GST_MFX_ENCODER_GET_CLASS (encoder);
   mfxStatus sts = MFX_ERR_NONE;
   mfxFrameAllocRequest *request;
   mfxVideoParam *params;
@@ -1043,8 +995,8 @@ gst_mfx_encoder_prepare (GstMfxEncoder * encoder)
   if (encoder_format == input_format && priv->input_memtype_is_system)
     priv->encoder_memtype_is_system = TRUE;
 
-  if (priv->plugin_uids)
-    if (!gst_mfx_encoder_load_plugin (encoder))
+  if (klass->load_plugin)
+    if (!klass->load_plugin (encoder))
       return GST_MFX_ENCODER_STATUS_ERROR_OPERATION_FAILED;
 
   gst_mfx_encoder_set_frame_info (encoder);
