@@ -201,11 +201,11 @@ gst_mfx_frc_algorithm_get_type (void)
     {GST_MFX_FRC_FRAME_INTERPOLATION,
         "Frame interpolation FRC.", "fi"},
     {GST_MFX_FRC_FI_PRESERVE_TIMESTAMP,
-        "Frame dropping/repetition and frame interpolation FRC with preserved original timestamps.",
-          "fi-preserve-ts"},
+          "Frame dropping/repetition and frame interpolation FRC with preserved original timestamps.",
+        "fi-preserve-ts"},
     {GST_MFX_FRC_FI_DISTRIBUTED_TIMESTAMP,
-        "Frame dropping/repetition and frame interpolation FRC with distributed timestamps.",
-          "fi-distributed-ts"},
+          "Frame dropping/repetition and frame interpolation FRC with distributed timestamps.",
+        "fi-distributed-ts"},
 #endif
     {0, NULL, NULL},
   };
@@ -808,6 +808,7 @@ gst_mfxpostproc_transform_caps_impl (GstBaseTransform * trans,
   GstMfxPluginBase *const plugin = GST_MFX_PLUGIN_BASE (vpp);
   GstVideoInfo vi, peer_vi;
   GstVideoFormat out_format;
+  GstVideoColorimetry out_colorimetry;
   GstCaps *out_caps, *peer_caps;
   GstMfxCapsFeature feature;
   const gchar *feature_str;
@@ -858,6 +859,14 @@ gst_mfxpostproc_transform_caps_impl (GstBaseTransform * trans,
   gst_video_info_from_caps (&peer_vi, peer_caps);
   out_format = GST_VIDEO_INFO_FORMAT (&peer_vi);
 
+  /* keep colorimetry information. */
+  out_colorimetry = GST_VIDEO_INFO_COLORIMETRY (&vi);
+
+  /* if VPP YUV->RGB conversion is used, set output RGB range to full */
+  if (GST_VIDEO_INFO_IS_YUV (&vi) && !GST_VIDEO_INFO_IS_YUV (&peer_vi)) {
+    out_colorimetry.range = GST_VIDEO_COLOR_RANGE_0_255;
+  }
+
   /* Update width and height from the caps */
   if (GST_VIDEO_INFO_HEIGHT (&peer_vi) != 1 &&
       GST_VIDEO_INFO_WIDTH (&peer_vi) != 1)
@@ -898,7 +907,9 @@ gst_mfxpostproc_transform_caps_impl (GstBaseTransform * trans,
       gst_mfx_find_preferred_caps_feature (GST_BASE_TRANSFORM_SRC_PAD (trans),
       FALSE, has_gl_texture_sharing, &out_format);
 #endif
+
   gst_video_info_change_format (&vi, out_format, width, height);
+  GST_VIDEO_INFO_COLORIMETRY (&vi) = out_colorimetry;
 
   out_caps = gst_video_info_to_caps (&vi);
   if (!out_caps)
@@ -928,7 +939,6 @@ gst_mfxpostproc_transform_caps (GstBaseTransform * trans,
   if (caps && filter) {
     out_caps = gst_caps_intersect_full (caps, filter, GST_CAPS_INTERSECT_FIRST);
     gst_caps_unref (caps);
-
     return out_caps;
   }
 

@@ -19,21 +19,146 @@
  *  Boston, MA 02110-1301 USA
  */
 
-#include <SdkDdkVer.h>
-#if NTDDI_VERSION >= 0x06030000 // >=Windows 8.1
-#include <ShellScalingApi.h>
-#define HIGH_DPI_OS_SUPPORT
-#endif
-
-#include "gstmfxd3d11device.h"
-#include "gstmfxwindow_d3d11.h"
 #include "gstmfxwindow_d3d11_priv.h"
+#include "gstmfxd3d11device.h"
 #include "gstmfxwindow_priv.h"
 #include "gstmfxsurface_d3d11.h"
 #include "video-format.h"
 
+#ifdef HIGH_DPI_OS_SUPPORT
+#include <ShellScalingApi.h>
+#endif
+
+#ifdef COLORSPACE_DXGI_SUPPORT
+#include <d3d11_1.h>
+#ifdef HDR_RENDERING_DXGI_SUPPORT
+#include <dxgi1_6.h>
+#else
+#include <dxgi1_4.h>
+#endif
+#endif //COLORSPACE_DXGI_SUPPORT
+
 #define DEBUG 1
 #include "gstmfxdebug.h"
+
+#ifdef COLORSPACE_DXGI_SUPPORT
+static DXGI_COLOR_SPACE_TYPE
+dxgi_colorspace_from_gst_video_colorimetry (GstVideoColorimetry * colorimetry,
+    gboolean rgb)
+{
+  if (rgb) {
+    switch (colorimetry->matrix) {
+#ifdef HDR_RENDERING_DXGI_SUPPORT
+      case GST_VIDEO_COLOR_MATRIX_BT2020:
+        switch (colorimetry->transfer) {
+          case GST_VIDEO_TRANSFER_BT2020_12:
+            return colorimetry->range == GST_VIDEO_COLOR_RANGE_16_235 ?
+                DXGI_COLOR_SPACE_RGB_STUDIO_G2084_NONE_P2020 :
+                DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020;
+          default:
+            return colorimetry->range == GST_VIDEO_COLOR_RANGE_16_235 ?
+                DXGI_COLOR_SPACE_RGB_STUDIO_G22_NONE_P2020 :
+                DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P2020;
+        }
+#endif
+      case GST_VIDEO_COLOR_MATRIX_BT709:
+      case GST_VIDEO_COLOR_MATRIX_BT601:
+      default:
+        return colorimetry->range == GST_VIDEO_COLOR_RANGE_16_235 ?
+            DXGI_COLOR_SPACE_RGB_STUDIO_G22_NONE_P709 :
+            DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709;
+    }
+  } else {
+    switch (colorimetry->matrix) {
+#ifdef HDR_RENDERING_DXGI_SUPPORT
+      case GST_VIDEO_COLOR_MATRIX_BT2020:
+        switch (colorimetry->transfer) {
+          case GST_VIDEO_TRANSFER_BT2020_12:
+            return DXGI_COLOR_SPACE_YCBCR_STUDIO_G2084_LEFT_P2020;      // should be TOPLEFT if UHD BluRay
+            /* HLG isn't yet recognized by gstreamer */
+            //case GST_VIDEO_TRANSFER_ARIB_STD_B67:
+            //        return colorimetry->range == GST_VIDEO_COLOR_RANGE_16_235 ?
+            //                DXGI_COLOR_SPACE_YCBCR_STUDIO_GHLG_TOPLEFT_P2020 :
+            //                DXGI_COLOR_SPACE_YCBCR_FULL_GHLG_TOPLEFT_P2020;
+          default:
+            return colorimetry->range == GST_VIDEO_COLOR_RANGE_16_235 ?
+                DXGI_COLOR_SPACE_YCBCR_STUDIO_G22_LEFT_P2020 :
+                DXGI_COLOR_SPACE_YCBCR_FULL_G22_LEFT_P2020;
+        }
+#endif
+      case GST_VIDEO_COLOR_MATRIX_BT709:
+        switch (colorimetry->transfer) {
+          case GST_VIDEO_TRANSFER_SRGB:
+            return DXGI_COLOR_SPACE_YCBCR_FULL_G22_NONE_P709_X601;
+          case GST_VIDEO_TRANSFER_BT709:
+            return colorimetry->range == GST_VIDEO_COLOR_RANGE_16_235 ?
+                DXGI_COLOR_SPACE_YCBCR_STUDIO_G22_LEFT_P709 :
+                DXGI_COLOR_SPACE_YCBCR_FULL_G22_LEFT_P709;
+        }
+      case GST_VIDEO_COLOR_MATRIX_BT601:
+        return colorimetry->range == GST_VIDEO_COLOR_RANGE_16_235 ?
+            DXGI_COLOR_SPACE_YCBCR_STUDIO_G22_LEFT_P601 :
+            DXGI_COLOR_SPACE_YCBCR_FULL_G22_LEFT_P601;
+      default:
+        return colorimetry->range == GST_VIDEO_COLOR_RANGE_16_235 ?
+            DXGI_COLOR_SPACE_YCBCR_STUDIO_G22_LEFT_P709 :
+            DXGI_COLOR_SPACE_YCBCR_FULL_G22_LEFT_P709;
+    }
+  }
+}
+#endif // COLORSPACE_DXGI_SUPPORT
+
+#ifdef COLORSPACE_DXGI_SUPPORT
+static HRESULT
+set_dxgi_output_colorspace (IDXGISwapChain1 * swap_chain,
+    DXGI_COLOR_SPACE_TYPE color_space)
+{
+  IDXGISwapChain3 *sc3;
+  UINT color_space_support;
+
+  if (SUCCEEDED (IDXGISwapChain1_QueryInterface (swap_chain,
+              &IID_IDXGISwapChain3, &sc3))) {
+    if (SUCCEEDED (IDXGISwapChain3_CheckColorSpaceSupport (sc3,
+                color_space, &color_space_support))
+        && (color_space_support &
+            DXGI_SWAP_CHAIN_COLOR_SPACE_SUPPORT_FLAG_PRESENT)) {
+      return IDXGISwapChain3_SetColorSpace1 (sc3, color_space);
+    }
+    IDXGISwapChain3_Release (sc3);
+  }
+
+  return E_FAIL;
+}
+
+static DXGI_COLOR_SPACE_TYPE
+get_preferred_dxgi_colorspace (IDXGISwapChain1 * swap_chain)
+{
+  DXGI_COLOR_SPACE_TYPE color_space = DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709;
+  IDXGISwapChain3 *sc3;
+
+  if (SUCCEEDED (IDXGISwapChain1_QueryInterface (swap_chain,
+              &IID_IDXGISwapChain3, &sc3))) {
+    UINT color_space_support;
+#ifdef HDR_RENDERING_DXGI_SUPPORT
+    IDXGIOutput *output;
+    IDXGIOutput6 *output6;
+
+    if (SUCCEEDED (IDXGISwapChain3_GetContainingOutput (sc3, &output))
+        && SUCCEEDED (IDXGIOutput_QueryInterface (output, &IID_IDXGIOutput6,
+                &output6))) {
+      DXGI_OUTPUT_DESC1 outputDesc;
+      if (SUCCEEDED (IDXGIOutput6_GetDesc1 (output6, &outputDesc))) {
+        color_space = outputDesc.ColorSpace;
+      }
+      IDXGIOutput6_Release (output6);
+    }
+#endif //HDR_RENDERING_DXGI_SUPPORT
+    IDXGISwapChain3_Release (sc3);
+  }
+
+  return color_space;
+}
+#endif
 
 static gboolean
 gst_mfx_window_d3d11_render (GstMfxWindow * window, GstMfxSurface * surface,
@@ -51,7 +176,7 @@ gst_mfx_window_d3d11_render (GstMfxWindow * window, GstMfxSurface * surface,
   }
 
   ID3D11VideoProcessorInputView *input_view = NULL;
-  D3D11_VIDEO_PROCESSOR_STREAM stream_data;
+  D3D11_VIDEO_PROCESSOR_STREAM stream_data = { 0 };
   D3D11_VIDEO_PROCESSOR_INPUT_VIEW_DESC input_view_desc = {
     .FourCC = 0,
     .ViewDimension = D3D11_VPIV_DIMENSION_TEXTURE2D,
@@ -69,8 +194,8 @@ gst_mfx_window_d3d11_render (GstMfxWindow * window, GstMfxSurface * surface,
       if (!priv2->mapped_surface)
         return FALSE;
 
-      gst_mfx_surface_d3d11_set_rw_flags (GST_MFX_SURFACE_D3D11 (priv2->
-              mapped_surface), MFX_SURFACE_WRITE);
+      gst_mfx_surface_d3d11_set_rw_flags (GST_MFX_SURFACE_D3D11
+          (priv2->mapped_surface), MFX_SURFACE_WRITE);
     }
 
     if (!gst_mfx_surface_map (priv2->mapped_surface))
@@ -92,19 +217,10 @@ gst_mfx_window_d3d11_render (GstMfxWindow * window, GstMfxSurface * surface,
     return FALSE;
 
   stream_data.Enable = TRUE;
-  stream_data.OutputIndex = 0;
-  stream_data.InputFrameOrField = 0;
-  stream_data.PastFrames = 0;
-  stream_data.FutureFrames = 0;
-  stream_data.ppPastSurfaces = NULL;
-  stream_data.ppFutureSurfaces = NULL;
   stream_data.pInputSurface = input_view;
-  stream_data.ppPastSurfacesRight = NULL;
-  stream_data.ppFutureSurfacesRight = NULL;
-  stream_data.pInputSurfaceRight = NULL;
 
-  ID3D11VideoContext_VideoProcessorSetStreamSourceRect (priv2->
-      d3d11_video_context, priv2->processor, 0, TRUE, &rect);
+  ID3D11VideoContext_VideoProcessorSetStreamSourceRect
+      (priv2->d3d11_video_context, priv2->processor, 0, TRUE, &rect);
 
   if (priv2->keep_aspect) {
     D3D11_TEXTURE2D_DESC output_desc;
@@ -137,13 +253,9 @@ gst_mfx_window_d3d11_render (GstMfxWindow * window, GstMfxSurface * surface,
       dest_rect.right = output_desc.Width;
     }
 
-    ID3D11VideoContext_VideoProcessorSetStreamDestRect (priv2->
-        d3d11_video_context, priv2->processor, 0, TRUE, &dest_rect);
+    ID3D11VideoContext_VideoProcessorSetStreamDestRect
+        (priv2->d3d11_video_context, priv2->processor, 0, TRUE, &dest_rect);
   }
-
-  ID3D11VideoContext_VideoProcessorSetStreamFrameFormat (priv2->
-      d3d11_video_context, priv2->processor, 0,
-      D3D11_VIDEO_FRAME_FORMAT_PROGRESSIVE);
 
   hr = ID3D11VideoContext_VideoProcessorBlt (priv2->d3d11_video_context,
       priv2->processor, priv2->output_view, 0, 1, &stream_data);
@@ -264,6 +376,9 @@ WindowProc (HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 static gboolean
 gst_mfx_window_d3d11_create_output_view (GstMfxWindowD3D11 * window)
 {
+#ifdef COLORSPACE_DXGI_SUPPORT
+  ID3D11VideoContext1 *ctx1 = NULL;
+#endif
   GstMfxWindowD3D11Private *const priv =
       GST_MFX_WINDOW_D3D11_GET_PRIVATE (window);
   D3D11_VIDEO_PROCESSOR_OUTPUT_VIEW_DESC output_view_desc = {
@@ -279,6 +394,43 @@ gst_mfx_window_d3d11_create_output_view (GstMfxWindowD3D11 * window)
       (ID3D11VideoProcessorOutputView **) & priv->output_view);
   if (FAILED (hr))
     return FALSE;
+
+  ID3D11VideoContext_VideoProcessorSetStreamFrameFormat
+      (priv->d3d11_video_context, priv->processor, 0,
+      D3D11_VIDEO_FRAME_FORMAT_PROGRESSIVE);
+
+#ifdef COLORSPACE_DXGI_SUPPORT
+  hr = ID3D11VideoContext_QueryInterface (priv->d3d11_video_context,
+      &IID_ID3D11VideoContext, &ctx1);
+  if (SUCCEEDED (hr)) {
+    DXGI_COLOR_SPACE_TYPE video_color_space =
+        dxgi_colorspace_from_gst_video_colorimetry (&GST_VIDEO_INFO_COLORIMETRY
+        (&priv->info), !GST_VIDEO_INFO_IS_YUV (&priv->info));
+
+    ID3D11VideoContext1_VideoProcessorSetStreamColorSpace1 (ctx1,
+        priv->processor, 0, video_color_space);
+
+    /* if VideoProcessor's built-in YUV->RGB conversion is used, we specify the stream's color space
+     * to let it convert to current swapchain's color space.
+     * if the stream is already RGB, we change instead the swapchain's color space accordingly if possible.
+     * TODO: implement RGB conversion to swapchain's color space and HDR tone-mapping using shaders.
+     */
+    if (priv->output_color_space != video_color_space
+        && !GST_VIDEO_INFO_IS_YUV (&priv->info)) {
+      hr = set_dxgi_output_colorspace (priv->dxgi_swapchain, video_color_space);
+      if (SUCCEEDED (hr)) {
+        priv->output_color_space = video_color_space;
+        GST_INFO ("DXGI output color space changed to %d",
+            priv->output_color_space);
+      }
+    }
+
+    ID3D11VideoContext1_VideoProcessorSetOutputColorSpace1 (ctx1,
+        priv->processor, priv->output_color_space);
+
+    ID3D11VideoContext1_Release (ctx1);
+  }
+#endif
 
   return TRUE;
 }
@@ -327,9 +479,6 @@ gst_mfx_window_d3d11_init_swap_chain (GstMfxWindowD3D11 * window)
   DXGI_SWAP_CHAIN_DESC1 swap_chain_desc = { 0 };
   HRESULT hr = S_OK;
 
-  swap_chain_desc.Width = 0;
-  swap_chain_desc.Height = 0;
-
   swap_chain_desc.Format =
       gst_video_format_to_dxgi_format (GST_VIDEO_INFO_FORMAT (&priv2->info)
       );
@@ -344,9 +493,8 @@ gst_mfx_window_d3d11_init_swap_chain (GstMfxWindowD3D11 * window)
   swap_chain_desc.SampleDesc.Count = 1;
   swap_chain_desc.SampleDesc.Quality = 0;
   swap_chain_desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-  swap_chain_desc.BufferCount = 2;
+  swap_chain_desc.BufferCount = 3;      /* triple-buffering to minimize latency. */
   swap_chain_desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
-  //swap_chain_desc.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
   swap_chain_desc.Scaling = DXGI_SCALING_STRETCH;
   swap_chain_desc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
 
@@ -357,6 +505,15 @@ gst_mfx_window_d3d11_init_swap_chain (GstMfxWindowD3D11 * window)
       &priv2->dxgi_swapchain);
   if (FAILED (hr))
     return FALSE;
+
+#ifdef COLORSPACE_DXGI_SUPPORT
+  priv2->output_color_space =
+      get_preferred_dxgi_colorspace (priv2->dxgi_swapchain);
+  if (FAILED (set_dxgi_output_colorspace (priv2->dxgi_swapchain,
+              priv2->output_color_space)))
+    priv2->output_color_space = DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709;
+  GST_INFO ("DXGI output color space set to %d", priv2->output_color_space);
+#endif
 
   IDXGISwapChain1_GetBuffer (priv2->dxgi_swapchain, 0, &IID_ID3D11Texture2D,
       (void **) &priv2->backbuffer_texture);
@@ -432,7 +589,6 @@ d3d11_create_window_internal (GstMfxWindowD3D11 * window)
     GST_ERROR ("Failed to register window class: %lu", GetLastError ());
     return FALSE;
   }
-
 #ifdef HIGH_DPI_OS_SUPPORT
   /* avoid system DPI scaling. */
   SetProcessDpiAwareness (PROCESS_PER_MONITOR_DPI_AWARE);

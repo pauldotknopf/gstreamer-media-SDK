@@ -62,7 +62,9 @@ GST_CAPS_CODEC ("video/x-h264, \
         format = (string) WVC1, \
         header-format = (string) asf, \
         stream-format = (string) bdu")
+#ifndef WITH_D3D11_BACKEND /* VP8 hw decode isn't implemented when using D3D11 */
     GST_CAPS_CODEC ("video/x-vp8")
+#endif
 #if MSDK_CHECK_VERSION(1,19)
     GST_CAPS_CODEC ("video/x-vp9")
 #endif
@@ -120,7 +122,9 @@ GST_CAPS_CODEC ("video/x-h264, \
        format = (string) WVC1, \
        header-format = (string) asf, \
        stream-format = (string) bdu"},
+#ifndef WITH_D3D11_BACKEND
        {"vp8", GST_RANK_NONE, "video/x-vp8"},
+#endif
 #if MSDK_CHECK_VERSION(1,19)
        {"vp9", GST_RANK_NONE, "video/x-vp9"},
 # endif
@@ -255,7 +259,7 @@ gst_mfxdec_negotiate (GstMfxDec * mfxdec)
   GstVideoDecoder *const vdec = GST_VIDEO_DECODER (mfxdec);
   GstMfxPluginBase *const plugin = GST_MFX_PLUGIN_BASE (vdec);
 
-  if (!mfxdec->do_renego)
+  if (!mfxdec->need_renegotiation)
     return TRUE;
 
   GST_DEBUG_OBJECT (mfxdec, "Input codec state changed, renegotiating");
@@ -267,8 +271,7 @@ gst_mfxdec_negotiate (GstMfxDec * mfxdec)
   if (!gst_video_decoder_negotiate (vdec))
     return FALSE;
 
-  mfxdec->do_renego = FALSE;
-
+  mfxdec->need_renegotiation = FALSE;
   return TRUE;
 }
 
@@ -349,12 +352,8 @@ gst_mfxdec_create (GstMfxDec * mfxdec, GstCaps * caps)
     is_autoplugged = TRUE;
   gst_object_replace (&parent, NULL);
 
-  plugin->srcpad_caps_is_raw =
-      gst_mfx_query_peer_has_raw_caps (GST_MFX_PLUGIN_BASE_SRC_PAD (plugin));
-
   mfxdec->decoder = gst_mfx_decoder_new (plugin->aggregator, profile, &info,
-      extradata, mfxdec->async_depth, plugin->srcpad_caps_is_raw,
-      mfxdec->live_mode, is_autoplugged);
+      extradata, mfxdec->async_depth, mfxdec->live_mode, is_autoplugged);
 
   if (extradata)
     g_byte_array_free (extradata, FALSE);
@@ -365,7 +364,7 @@ gst_mfxdec_create (GstMfxDec * mfxdec, GstCaps * caps)
   if (mfxdec->skip_corrupted_frames)
     gst_mfx_decoder_skip_corrupted_frames (mfxdec->decoder);
 
-  mfxdec->do_renego = TRUE;
+  mfxdec->need_renegotiation = TRUE;
   return TRUE;
 }
 
@@ -455,10 +454,12 @@ gst_mfxdec_flush_discarded_frames (GstMfxDec * mfxdec)
 }
 
 static gboolean
-gst_mfxdec_reset_full (GstMfxDec * mfxdec, GstCaps * caps, gboolean reset)
+gst_mfxdec_reset_full (GstMfxDec * mfxdec, GstCaps * caps, gboolean need_reset)
 {
-  if (mfxdec->decoder) {
-    if (!reset)
+  if (mfxdec->decoder && !mfxdec->need_renegotiation) {
+    /* Some videos repeatedly invoke set_format() method thus calling this function.
+     * In such scenarios, just return TRUE to avoid the soft reset */
+    if (!need_reset)
       return TRUE;
 
     gst_mfxdec_drain (mfxdec);
@@ -558,9 +559,21 @@ gst_mfxdec_handle_frame (GstVideoDecoder * vdec, GstVideoCodecFrame * frame)
   gst_mfxdec_flush_discarded_frames (mfxdec);
 
   switch (sts) {
+    case GST_MFX_DECODER_STATUS_REINIT:
+      GST_DEBUG_OBJECT (mfxdec,
+          "Incompatible video parameters found, re-initializing decoder.");
+
+      mfxdec->need_renegotiation = TRUE;
+      gst_mfxdec_reset_full (mfxdec, mfxdec->sinkpad_caps, TRUE);
+      ret = GST_VIDEO_DECODER_FLOW_NEED_DATA;
+      break;
     case GST_MFX_DECODER_STATUS_CONFIGURED:
       if (!gst_mfxdec_negotiate (mfxdec))
         goto not_negotiated;
+      /* Final check to determine if system or video memory should be used for
+       * the output of the decoder */
+      gst_mfx_decoder_decide_output_memtype (mfxdec->decoder,
+          !GST_MFX_PLUGIN_BASE (mfxdec)->srcpad_caps_is_raw);
     case GST_MFX_DECODER_STATUS_ERROR_MORE_DATA:
       ret = GST_VIDEO_DECODER_FLOW_NEED_DATA;
       break;
@@ -810,8 +823,10 @@ gst_mfxdec_register (GstPlugin * plugin, mfxU16 platform)
           /* fall-through */
         case MFX_PLATFORM_CHERRYTRAIL:
         case MFX_PLATFORM_BROADWELL:
+#ifndef WITH_D3D11_BACKEND
           if (!g_strcmp0 (name, "vp8"))
             rank = GST_RANK_PRIMARY + 3;
+#endif
 #ifdef WITH_D3D11_BACKEND
           if (!g_strcmp0 (name, "hevc")) {
             mfx_codec_map[i].caps_str = "video/x-h265, "
