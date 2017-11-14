@@ -130,8 +130,7 @@ gst_mfx_decoder_decide_output_memtype (GstMfxDecoder * decoder,
 
   if (memtype_is_video) {
     decoder->params.IOPattern = MFX_IOPATTERN_OUT_VIDEO_MEMORY;
-  }
-  else {
+  } else {
     decoder->memtype_is_system = TRUE;
     decoder->params.IOPattern = MFX_IOPATTERN_OUT_SYSTEM_MEMORY;
     gst_mfx_task_ensure_memtype_is_system (decoder->decode);
@@ -169,10 +168,8 @@ close_decoder (GstMfxDecoder * decoder)
   gst_mfx_surface_pool_replace (&decoder->pool, NULL);
   /* Make sure frame allocator points to the right task to free surfaces */
   gst_mfx_task_aggregator_set_current_task (decoder->aggregator,
-      decoder->decode);
+    decoder->decode);
   /* calls gst_mfx_task_frame_free() when configured with video memory */
-  if (decoder->plugin_uid)
-    MFXVideoUSER_UnLoad (decoder->session, decoder->plugin_uid);
   MFXVideoDECODE_Close (decoder->session);
 }
 
@@ -186,18 +183,14 @@ gst_mfx_decoder_finalize (GObject * object)
     g_byte_array_unref (decoder->codec_data);
 
   g_queue_foreach (&decoder->input_frames,
-      (GFunc) gst_video_codec_frame_unref, NULL);
-  g_queue_foreach (&decoder->pending_frames,
-      (GFunc) gst_video_codec_frame_unref, NULL);
-  g_queue_foreach (&decoder->decoded_frames,
-      (GFunc) gst_video_codec_frame_unref, NULL);
+    (GFunc) gst_video_codec_frame_unref, NULL);
   g_queue_clear (&decoder->input_frames);
   g_queue_clear (&decoder->pending_frames);
   g_queue_clear (&decoder->decoded_frames);
   g_queue_clear (&decoder->discarded_frames);
 
-  gst_mfx_filter_replace (&decoder->filter, NULL);
   close_decoder (decoder);
+  gst_mfx_filter_replace (&decoder->filter, NULL);
   gst_mfx_task_aggregator_unref (decoder->aggregator);
   gst_mfx_task_replace (&decoder->decode, NULL);
 }
@@ -616,7 +609,7 @@ gst_mfx_decoder_reset (GstMfxDecoder * decoder)
   mfxStatus sts = MFX_ERR_NONE;
 
   g_queue_foreach (&decoder->input_frames,
-      (GFunc) gst_video_codec_frame_unref, NULL);
+    (GFunc) gst_video_codec_frame_unref, NULL);
   g_queue_clear (&decoder->input_frames);
 
   /* Flush pending frames */
@@ -666,10 +659,15 @@ queue_output_frame (GstMfxDecoder * decoder, GstMfxSurface * surface)
   else
     out_frame = new_frame (decoder);
 
+  if (NULL == out_frame) {
+    GST_DEBUG ("couldn't output decoded frame : %u",
+        GST_MFX_SURFACE_FRAME_SURFACE (surface)->Data.FrameOrder);
+    return;
+  }
+
   gst_video_codec_frame_set_user_data (out_frame,
       gst_mfx_surface_ref (surface), (GDestroyNotify) gst_mfx_surface_unref);
   g_queue_push_head (&decoder->decoded_frames, out_frame);
-
   GST_LOG ("decoded frame : %u",
       GST_MFX_SURFACE_FRAME_SURFACE (surface)->Data.FrameOrder);
 }
@@ -797,13 +795,14 @@ gst_mfx_decoder_decode (GstMfxDecoder * decoder, GstVideoCodecFrame * frame)
       }
       ret = GST_MFX_DECODER_STATUS_ERROR_MORE_DATA;
       goto end;
-    }
-    else if (MFX_ERR_INCOMPATIBLE_VIDEO_PARAM == sts) {
-      ret = GST_MFX_DECODER_STATUS_REINIT;
+    } else if (MFX_ERR_INCOMPATIBLE_VIDEO_PARAM == sts) {
+      GST_DEBUG ("Video params are incompatible, they may have changed"
+        " - reinitializing decoder.");
+      close_decoder (decoder);
+      decoder->inited = 0;
+      ret = GST_MFX_DECODER_STATUS_ERROR_MORE_DATA;
       goto end;
-    }
-
-    if (MFX_ERR_NONE != sts) {
+    } else if (MFX_ERR_NONE != sts) {
       GST_ERROR ("Status %d : Error during MFX decoding", sts);
       ret = GST_MFX_DECODER_STATUS_ERROR_UNKNOWN;
       goto end;
