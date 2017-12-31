@@ -20,7 +20,6 @@
 
 #include "gstmfxsurface_vaapi.h"
 #include "gstmfxdisplay.h"
-#include "gstmfxutils_vaapi.h"
 #include "video-format.h"
 
 #define DEBUG 1
@@ -102,6 +101,8 @@ gst_mfx_surface_vaapi_release (GstMfxSurface * surface)
   GstMfxSurfaceVaapi *const vaapi_surface =
       GST_MFX_SURFACE_VAAPI_CAST (surface);
 
+  vaapi_image_replace (&vaapi_surface->image, NULL);
+
   /* Don't destroy the underlying VASurface if originally from the task allocator */
   if (!priv->task) {
     GST_MFX_DISPLAY_LOCK (vaapi_surface->display);
@@ -165,9 +166,18 @@ gst_mfx_surface_vaapi_unmap (GstMfxSurface * surface)
 }
 
 static void
+gst_mfx_surface_vaapi_finalize (GObject * object)
+{
+  G_OBJECT_CLASS (gst_mfx_surface_vaapi_parent_class)->finalize (object);
+}
+
+static void
 gst_mfx_surface_vaapi_class_init (GstMfxSurfaceVaapiClass * klass)
 {
   GstMfxSurfaceClass *const surface_class = GST_MFX_SURFACE_CLASS (klass);
+  GObjectClass *const object_class = G_OBJECT_CLASS (klass);
+
+  object_class->finalize = gst_mfx_surface_vaapi_finalize;
 
   surface_class->allocate = gst_mfx_surface_vaapi_allocate;
   surface_class->release = gst_mfx_surface_vaapi_release;
@@ -225,6 +235,9 @@ gst_mfx_surface_vaapi_derive_image (GstMfxSurface * surface)
 
   g_return_val_if_fail (surface != NULL, NULL);
 
+  if (vaapi_surface->image)
+    goto done;
+
   va_image.image_id = VA_INVALID_ID;
   va_image.buf = VA_INVALID_ID;
 
@@ -235,10 +248,12 @@ gst_mfx_surface_vaapi_derive_image (GstMfxSurface * surface)
   if (!vaapi_check_status (status, "vaDeriveImage ()"))
     return NULL;
 
-  if (va_image.image_id == VA_INVALID_ID || va_image.buf == VA_INVALID_ID)
+  vaapi_surface->image = vaapi_image_new_with_image (vaapi_surface->display, &va_image);
+  if (!vaapi_surface->image)
     return NULL;
 
-  return vaapi_image_new_with_image (vaapi_surface->display, &va_image);
+done:
+  return vaapi_image_ref (vaapi_surface->image);
 }
 
 GstMfxDisplay *

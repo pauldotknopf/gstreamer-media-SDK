@@ -27,7 +27,6 @@
 #include <fcntl.h>
 #include <xf86drm.h>
 #include <intel_bufmgr.h>
-#include "gstmfxdisplay_priv.h"
 #include "gstmfxdisplay_wayland.h"
 #include "gstmfxdisplay_wayland_priv.h"
 #include "gstmfxwindow_wayland.h"
@@ -54,8 +53,6 @@ set_display_name (GstMfxDisplay * display, const gchar * display_name)
 {
   GstMfxDisplayWaylandPrivate *const priv =
       GST_MFX_DISPLAY_WAYLAND_GET_PRIVATE (display);
-
-  //g_free (priv->display_name);
 
   if (!display_name) {
     display_name = get_default_display_name ();
@@ -305,21 +302,29 @@ gst_mfx_display_wayland_get_size_mm (GstMfxDisplay * display,
 }
 
 static void
-gst_mfx_display_wayland_init (GstMfxDisplayWayland * display)
+gst_mfx_display_wayland_finalize (GObject * object)
 {
+  G_OBJECT_CLASS (gst_mfx_display_wayland_parent_class)->finalize (object);
 }
 
 static void
 gst_mfx_display_wayland_class_init (GstMfxDisplayWaylandClass * klass)
 {
   GstMfxDisplayClass *const dpy_class = GST_MFX_DISPLAY_CLASS (klass);
+  GObjectClass *const object_class = G_OBJECT_CLASS (klass);
+
+  object_class->finalize = gst_mfx_display_wayland_finalize;
 
   dpy_class->display_type = GST_MFX_DISPLAY_TYPE_WAYLAND;
-
   dpy_class->open_display = gst_mfx_display_wayland_open_display;
   dpy_class->close_display = gst_mfx_display_wayland_close_display;
   dpy_class->get_size = gst_mfx_display_wayland_get_size;
   dpy_class->get_size_mm = gst_mfx_display_wayland_get_size_mm;
+}
+
+static void
+gst_mfx_display_wayland_init (GstMfxDisplayWayland * display)
+{
 }
 
 /**

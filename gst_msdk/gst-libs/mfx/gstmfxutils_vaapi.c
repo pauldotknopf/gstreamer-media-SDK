@@ -31,6 +31,7 @@ struct _VaapiImage
 {
   /*< private > */
   GstObject parent_instance;
+
   GstMfxDisplay *display;
   GstVideoFormat format;
   guchar *image_data;
@@ -45,26 +46,26 @@ static gboolean
 _vaapi_image_set_image (VaapiImage * image, const VAImage * va_image);
 
 static void
-vaapi_image_finalize (VaapiImage * image)
+vaapi_image_finalize (GObject * object)
 {
-  VAImageID image_id;
-  VAStatus status;
+  VaapiImage *image = VAAPI_IMAGE (object);
 
   vaapi_image_unmap (image);
 
-  image_id = vaapi_image_get_id (image);
-  GST_DEBUG ("image %" GST_MFX_ID_FORMAT, GST_MFX_ID_ARGS (image_id));
+  if (image->image.image_id != VA_INVALID_ID) {
+    VAStatus status;
 
-  if (image_id != VA_INVALID_ID) {
     GST_MFX_DISPLAY_LOCK (image->display);
     status =
-        vaDestroyImage (GST_MFX_DISPLAY_VADISPLAY (image->display), image_id);
+        vaDestroyImage (GST_MFX_DISPLAY_VADISPLAY (image->display), image->image.image_id);
     GST_MFX_DISPLAY_UNLOCK (image->display);
     if (!vaapi_check_status (status, "vaDestroyImage ()"))
       g_warning ("failed to destroy image %" GST_MFX_ID_FORMAT,
-          GST_MFX_ID_ARGS (image_id));
+          GST_MFX_ID_ARGS (image->image.image_id ));
   }
   gst_mfx_display_unref (image->display);
+
+  G_OBJECT_CLASS (vaapi_image_parent_class)->finalize (object);
 }
 
 static gboolean
@@ -104,6 +105,9 @@ vaapi_image_class_init (VaapiImageClass * klass)
 static void
 vaapi_image_init (VaapiImage * image)
 {
+  image->image_data = NULL;
+  image->image.image_id = VA_INVALID_ID;
+  image->image.buf = VA_INVALID_ID;
 }
 
 /**
@@ -133,8 +137,6 @@ vaapi_image_new (GstMfxDisplay * display,
     return NULL;
 
   image->display = gst_mfx_display_ref (display);
-  image->image.image_id = VA_INVALID_ID;
-  image->image.buf = VA_INVALID_ID;
   if (!vaapi_image_create (image, width, height, format))
     goto error;
   return image;
@@ -157,7 +159,7 @@ error:
  * Return value: the newly allocated #VaapiImage object
  */
 VaapiImage *
-vaapi_image_new_with_image (GstMfxDisplay * display, VAImage * va_image)
+vaapi_image_new_with_image (GstMfxDisplay * display, const VAImage * va_image)
 {
   VaapiImage *image;
 
@@ -172,26 +174,6 @@ vaapi_image_new_with_image (GstMfxDisplay * display, VAImage * va_image)
   image->display = gst_mfx_display_ref (display);
   _vaapi_image_set_image (image, va_image);
   return image;
-}
-
-/**
- * vaapi_image_get_id:
- * @image: a #VaapiImage
- *
- * Returns the underlying VAImageID of the @image.
- *
- * Return value: the underlying VA image id
- */
-VAImageID
-vaapi_image_get_id (VaapiImage * image)
-{
-  VAImage *va_image;
-
-  g_return_val_if_fail (image != NULL, VA_INVALID_ID);
-
-  va_image = &image->image;
-
-  return va_image->image_id;
 }
 
 /**

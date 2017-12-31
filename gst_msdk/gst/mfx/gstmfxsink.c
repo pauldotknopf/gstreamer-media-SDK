@@ -67,12 +67,6 @@ G_DEFINE_TYPE_WITH_CODE (GstMfxSink,
 
 enum
 {
-  HANDOFF_SIGNAL,
-  LAST_SIGNAL
-};
-
-enum
-{
   PROP_0,
 #ifdef WITH_LIBVA_BACKEND
   PROP_DISPLAY_TYPE,
@@ -637,9 +631,7 @@ gst_mfxsink_set_render_backend (GstMfxSink * sink)
   switch (sink->display_type_req) {
 #ifdef USE_DRI3
     case GST_MFX_DISPLAY_TYPE_X11:
-      display =
-          gst_mfx_display_x11_new (g_object_new (GST_TYPE_MFX_DISPLAY_X11,
-              NULL), sink->display_name);
+      display = gst_mfx_display_x11_new (sink->display_name);
       if (!display)
         goto display_unsupported;
       sink->backend = gst_mfxsink_backend_x11 ();
@@ -797,13 +789,9 @@ gst_mfxsink_ensure_window_size (GstMfxSink * sink, guint * width_ptr,
 static gboolean
 gst_mfxsink_start (GstBaseSink * base_sink)
 {
-  GstMfxSink *const sink = GST_MFXSINK_CAST (base_sink);
-  GstMfxPluginBase *plugin = GST_MFX_PLUGIN_BASE (sink);
+  GstMfxPluginBase *plugin = GST_MFX_PLUGIN_BASE (base_sink);
 
-  if (!gst_mfx_plugin_base_ensure_aggregator (plugin))
-    return FALSE;
-
-  return TRUE;
+  return gst_mfx_plugin_base_ensure_aggregator (GST_MFX_PLUGIN_BASE (plugin));
 }
 
 static gboolean
@@ -814,6 +802,7 @@ gst_mfxsink_stop (GstBaseSink * base_sink)
   if (!sink->foreign_window) {
 #ifdef WITH_LIBVA_BACKEND
     gst_mfxsink_set_event_handling (sink, FALSE);
+    gst_mfx_display_replace (&sink->display, NULL);
 #endif
     gst_mfx_window_replace (&sink->window, NULL);
   }

@@ -117,6 +117,7 @@ struct _GstMfxWindowWayland
 G_DEFINE_TYPE (GstMfxWindowWayland, gst_mfx_window_wayland,
     GST_TYPE_MFX_WINDOW);
 
+
 static inline gboolean
 frame_done (FrameState *frame)
 {
@@ -125,6 +126,7 @@ frame_done (FrameState *frame)
   g_atomic_int_set (&frame->done, TRUE);
   g_atomic_pointer_compare_and_exchange (&priv->last_frame, frame, NULL);
   return g_atomic_int_dec_and_test (&priv->num_frames_pending);
+
 }
 
 static void
@@ -150,6 +152,7 @@ frame_release_callback (void *data, struct wl_buffer *wl_buffer)
 static const struct wl_buffer_listener frame_buffer_listener = {
   frame_release_callback
 };
+
 
 /**
  * GstMfxWindowWaylandClass:
@@ -234,8 +237,7 @@ gst_mfx_window_wayland_render (GstMfxWindow * window,
   FrameState *frame;
   guintptr fd = 0;
   guint32 drm_format = 0;
-  gint offsets[3] = { 0 }, pitches[3] = {
-  0}, num_planes = 0, i = 0;
+  gint offsets[3] = { 0 }, pitches[3] = {0}, num_planes = 0, i = 0;
   VaapiImage *vaapi_image;
 
   buffer_proxy = gst_mfx_prime_buffer_proxy_new_from_surface (surface);
@@ -274,8 +276,8 @@ gst_mfx_window_wayland_render (GstMfxWindow * window,
   GST_MFX_DISPLAY_LOCK (priv->display);
   buffer =
       wl_drm_create_prime_buffer (display_priv->drm, fd,
-      src_rect->width, src_rect->height, drm_format,
-      offsets[0], pitches[0], offsets[1], pitches[1], offsets[2], pitches[2]);
+        src_rect->width, src_rect->height, drm_format,
+        offsets[0], pitches[0], offsets[1], pitches[1], offsets[2], pitches[2]);
   GST_MFX_DISPLAY_UNLOCK (priv->display);
   if (!buffer) {
     GST_ERROR ("No wl_buffer created\n");
@@ -444,7 +446,6 @@ gst_mfx_window_wayland_destroy (GstMfxWindow * window)
 {
   GstMfxWindowWaylandPrivate *const priv =
       GST_MFX_WINDOW_WAYLAND_GET_PRIVATE (window);
-
   struct wl_display *const display =
       GST_MFX_DISPLAY_HANDLE (priv->display);
 
@@ -477,6 +478,7 @@ gst_mfx_window_wayland_destroy (GstMfxWindow * window)
     wl_shell_surface_destroy (priv->shell_surface);
     priv->shell_surface = NULL;
   }
+
   if (priv->surface) {
     wl_surface_destroy (priv->surface);
     priv->surface = NULL;
@@ -486,7 +488,9 @@ gst_mfx_window_wayland_destroy (GstMfxWindow * window)
     wl_event_queue_destroy (priv->event_queue);
     priv->event_queue = NULL;
   }
+
   gst_poll_free (priv->poll);
+  gst_mfx_display_unref (priv->display);
 }
 
 static gboolean
@@ -510,9 +514,18 @@ gst_mfx_window_wayland_resize (GstMfxWindow * window, guint width, guint height)
 }
 
 static void
+gst_mfx_window_wayland_finalize (GObject * object)
+{
+  G_OBJECT_CLASS (gst_mfx_window_wayland_parent_class)->finalize (object);
+}
+
+static void
 gst_mfx_window_wayland_class_init (GstMfxWindowWaylandClass * klass)
 {
   GstMfxWindowClass *const window_class = GST_MFX_WINDOW_CLASS (klass);
+  GObjectClass *const object_class = G_OBJECT_CLASS (klass);
+
+  object_class->finalize = gst_mfx_window_wayland_finalize;
 
   window_class->create = gst_mfx_window_wayland_create;
   window_class->destroy = gst_mfx_window_wayland_destroy;

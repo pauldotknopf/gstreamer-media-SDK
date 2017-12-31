@@ -232,15 +232,17 @@ gst_mfx_surface_create (GstMfxSurface * surface, const GstVideoInfo * info,
 }
 
 static void
-gst_mfx_surface_finalize (GObject * surface)
+gst_mfx_surface_finalize (GObject * object)
 {
-  GstMfxSurfacePrivate *const priv = GST_MFX_SURFACE_GET_PRIVATE (surface);
-  GstMfxSurfaceClass *klass = GST_MFX_SURFACE_GET_CLASS (surface);
+  GstMfxSurfacePrivate *const priv = GST_MFX_SURFACE_GET_PRIVATE (object);
+  GstMfxSurfaceClass *klass = GST_MFX_SURFACE_GET_CLASS (object);
 
   if (klass->release)
-    klass->release (surface);
+    klass->release (object);
   gst_mfx_task_replace (&priv->task, NULL);
   gst_mfx_context_replace (&priv->context, NULL);
+
+  G_OBJECT_CLASS (gst_mfx_surface_parent_class)->finalize (object);
 }
 
 void

@@ -168,7 +168,7 @@ close_decoder (GstMfxDecoder * decoder)
   gst_mfx_surface_pool_replace (&decoder->pool, NULL);
   /* Make sure frame allocator points to the right task to free surfaces */
   gst_mfx_task_aggregator_set_current_task (decoder->aggregator,
-    decoder->decode);
+      decoder->decode);
   /* calls gst_mfx_task_frame_free() when configured with video memory */
   MFXVideoDECODE_Close (decoder->session);
 }
@@ -183,7 +183,11 @@ gst_mfx_decoder_finalize (GObject * object)
     g_byte_array_unref (decoder->codec_data);
 
   g_queue_foreach (&decoder->input_frames,
-    (GFunc) gst_video_codec_frame_unref, NULL);
+      (GFunc) gst_video_codec_frame_unref, NULL);
+  g_queue_foreach (&decoder->pending_frames,
+      (GFunc) gst_video_codec_frame_unref, NULL);
+  g_queue_foreach (&decoder->decoded_frames,
+      (GFunc) gst_video_codec_frame_unref, NULL);
   g_queue_clear (&decoder->input_frames);
   g_queue_clear (&decoder->pending_frames);
   g_queue_clear (&decoder->decoded_frames);
@@ -193,6 +197,8 @@ gst_mfx_decoder_finalize (GObject * object)
   gst_mfx_filter_replace (&decoder->filter, NULL);
   gst_mfx_task_aggregator_unref (decoder->aggregator);
   gst_mfx_task_replace (&decoder->decode, NULL);
+
+  G_OBJECT_CLASS (gst_mfx_decoder_parent_class)->finalize (object);
 }
 
 static mfxStatus
@@ -604,12 +610,19 @@ done:
 }
 
 gboolean
+gst_mfx_decoder_reinit (GstMfxDecoder * decoder)
+{
+  close_decoder (decoder);
+  return init_decoder (decoder);
+}
+
+gboolean
 gst_mfx_decoder_reset (GstMfxDecoder * decoder)
 {
   mfxStatus sts = MFX_ERR_NONE;
 
   g_queue_foreach (&decoder->input_frames,
-    (GFunc) gst_video_codec_frame_unref, NULL);
+      (GFunc) gst_video_codec_frame_unref, NULL);
   g_queue_clear (&decoder->input_frames);
 
   /* Flush pending frames */
@@ -796,11 +809,7 @@ gst_mfx_decoder_decode (GstMfxDecoder * decoder, GstVideoCodecFrame * frame)
       ret = GST_MFX_DECODER_STATUS_ERROR_MORE_DATA;
       goto end;
     } else if (MFX_ERR_INCOMPATIBLE_VIDEO_PARAM == sts) {
-      GST_DEBUG ("Video params are incompatible, they may have changed"
-        " - reinitializing decoder.");
-      close_decoder (decoder);
-      decoder->inited = 0;
-      ret = GST_MFX_DECODER_STATUS_ERROR_MORE_DATA;
+      ret = GST_MFX_DECODER_STATUS_ERROR_INCOMPATIBLE_VIDEO_PARAMS;
       goto end;
     } else if (MFX_ERR_NONE != sts) {
       GST_ERROR ("Status %d : Error during MFX decoding", sts);
