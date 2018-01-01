@@ -133,7 +133,7 @@ gst_mfx_surface_allocate_default (GstMfxSurface * surface, GstMfxTask * task)
 }
 
 static void
-gst_mfx_surface_release_default (GObject * surface)
+gst_mfx_surface_release_default (GstMfxSurface * surface)
 {
   GstMfxSurfacePrivate *const priv = GST_MFX_SURFACE_GET_PRIVATE (surface);
   mfxFrameData *ptr = &priv->surface.Data;
@@ -234,11 +234,12 @@ gst_mfx_surface_create (GstMfxSurface * surface, const GstVideoInfo * info,
 static void
 gst_mfx_surface_finalize (GObject * object)
 {
-  GstMfxSurfacePrivate *const priv = GST_MFX_SURFACE_GET_PRIVATE (object);
-  GstMfxSurfaceClass *klass = GST_MFX_SURFACE_GET_CLASS (object);
+  GstMfxSurface *surface = GST_MFX_SURFACE (object);
+  GstMfxSurfacePrivate *const priv = GST_MFX_SURFACE_GET_PRIVATE (surface);
+  GstMfxSurfaceClass *klass = GST_MFX_SURFACE_GET_CLASS (surface);
 
   if (klass->release)
-    klass->release (object);
+    klass->release (surface);
   gst_mfx_task_replace (&priv->task, NULL);
   gst_mfx_context_replace (&priv->context, NULL);
 

@@ -497,7 +497,6 @@ gst_mfx_encoder_create (GstMfxEncoder * encoder,
   goto error_invalid_vtable;                \
   } while (0)
 
-  CHECK_VTABLE_HOOK (finalize);
   CHECK_VTABLE_HOOK (get_default_properties);
 
 #undef CHECK_VTABLE_HOOK
@@ -522,8 +521,6 @@ gst_mfx_encoder_finalize (GObject * object)
   GstMfxEncoder *encoder = GST_MFX_ENCODER (object);
   GstMfxEncoderPrivate *const priv = GST_MFX_ENCODER_GET_PRIVATE (encoder);
   GstMfxEncoderClass *const klass = GST_MFX_ENCODER_GET_CLASS (encoder);
-
-  klass->finalize (encoder);
 
   g_byte_array_unref (priv->bitstream);
 

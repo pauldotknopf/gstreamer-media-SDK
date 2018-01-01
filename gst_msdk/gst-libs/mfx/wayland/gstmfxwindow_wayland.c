@@ -55,7 +55,7 @@ struct _FrameState
 };
 
 static FrameState *
-frame_state_new (GstMfxWindow *window)
+frame_state_new (GstMfxWindow * window)
 {
   FrameState *frame;
 
@@ -70,7 +70,7 @@ frame_state_new (GstMfxWindow *window)
 }
 
 static void
-frame_state_free (FrameState *frame)
+frame_state_free (FrameState * frame)
 {
   if (!frame)
     return;
@@ -117,20 +117,18 @@ struct _GstMfxWindowWayland
 G_DEFINE_TYPE (GstMfxWindowWayland, gst_mfx_window_wayland,
     GST_TYPE_MFX_WINDOW);
 
-
 static inline gboolean
-frame_done (FrameState *frame)
+frame_done (FrameState * frame)
 {
   GstMfxWindowWaylandPrivate *const priv =
-         GST_MFX_WINDOW_WAYLAND_GET_PRIVATE (frame->window);
+      GST_MFX_WINDOW_WAYLAND_GET_PRIVATE (frame->window);
   g_atomic_int_set (&frame->done, TRUE);
   g_atomic_pointer_compare_and_exchange (&priv->last_frame, frame, NULL);
   return g_atomic_int_dec_and_test (&priv->num_frames_pending);
-
 }
 
 static void
-frame_done_callback (void *data, struct wl_callback *callback, uint32_t time)
+frame_done_callback (void * data, struct wl_callback * callback, uint32_t time)
 {
   frame_done (data);
 }
@@ -140,7 +138,7 @@ static const struct wl_callback_listener frame_callback_listener = {
 };
 
 static void
-frame_release_callback (void *data, struct wl_buffer *wl_buffer)
+frame_release_callback (void * data, struct wl_buffer * wl_buffer)
 {
   FrameState *const frame = data;
   if (!frame->done)
@@ -332,20 +330,20 @@ gst_mfx_window_wayland_hide (GstMfxWindow * window)
 }
 
 static void
-handle_ping (void *data, struct wl_shell_surface *shell_surface,
+handle_ping (void * data, struct wl_shell_surface * shell_surface,
     uint32_t serial)
 {
   wl_shell_surface_pong (shell_surface, serial);
 }
 
 static void
-handle_configure (void *data, struct wl_shell_surface *shell_surface,
+handle_configure (void * data, struct wl_shell_surface * shell_surface,
     uint32_t edges, int32_t width, int32_t height)
 {
 }
 
 static void
-handle_popup_done (void *data, struct wl_shell_surface *shell_surface)
+handle_popup_done (void * data, struct wl_shell_surface * shell_surface)
 {
 }
 
