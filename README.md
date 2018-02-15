@@ -16,11 +16,11 @@ plugins and their usage.
 
 Features
 --------
- - Decode H264 AVC, MPEG-2, JPEG, VC-1, HEVC (Main and Main 10), VP8 and VP9 videos
+ - Decode H264 AVC, MPEG-2, JPEG, VC-1, HEVC (Main and Main 10), VP8 and VP9 (including Profile 2 10-bit) videos
  - Compatible with GStreamer-based video players such as Totem, Parole and gst-play
    through playbin element.
  - Support for zero-copy rendering with glimagesink using EGL (Linux) or DirectX 11 / OpenGL interop (Windows)
- - Support for Direct3D 11 on Windows with zero-copy and deep color rendering for 10-bit video formats
+ - Support for Direct3D 11 on Windows with zero-copy and HDR support for 10-bit video formats
  - Support native Wayland rendering using Wayland backend
  - Support X11 rendering using DRI3 backend
  - Support VPP acceleration of dynamic procamp control during video playback
@@ -68,15 +68,17 @@ Then open VS x64 native tools command prompt, and add gstreamer pkgconfig path t
 
 	set PKG_CONFIG_PATH=%GSTREAMER_1_0_ROOT_X86_64%lib\pkgconfig
 
-Run the Meson command to configure the out-of-source build.
+When building against the open-source Media SDK stack (https://github.com/Intel-Media-SDK/MediaSDK), please ensure that the MSDK pkgconfig files
+installed in custom build paths are included in the PKG_CONFIG_PATH. For example,
 
-	meson ../gst-mfx-build
+	export PKG_CONFIG_PATH=/opt/intel/mediasdk/lib/pkgconfig/
 
-To setup a release build and install to the GStreamer system installation directory:
+To setup a release build and install to the GStreamer system installation directory,
+run the following Meson command to configure the out-of-source build:
 
 	meson ../gst-mfx-build_release --prefix=${PREFIX} --libdir=${LIBDIR} --buildtype=release
 
-Typically, ${PREFIX} would be `/usr` in Linux or `C:/gstreamer/1.0/x86_64` in Windows,
+Typically, ${PREFIX} would be `/usr` in Linux or `C:\gstreamer\1.0\x86_64` in Windows,
 and ${LIBDIR} would be `lib64` (Fedora and related derivatives), `lib/x86_64-linux-gnu` (Ubuntu and related derivatives),
 or `lib` (Windows).
 	
@@ -86,11 +88,11 @@ To setup a VS2015 project:
 		
 Newer platforms such as Skylake and Kabylake have added video codec support such as HEVC decode / encode and VP9 decode,
 but are disabled by default to maximize compatibility with older systems such as Baytrail and Haswell.
-To enable these features such as HEVC encode support, from your build dir:
+To enable these features such as HEVC encode and VP9 decode support, you can do the following:
 
-	mesonconf -DMFX_H265_ENCODER=true
+	meson ../gst-mfx-build --prefix=${PREFIX} --libdir=${LIBDIR} -DMFX_H265_ENCODER=true -DMFX_VP9_DECODER=true
 
-For a list of more options when configuring the build, refer to the meson_options.txt file inside the source directory or run mesonconf inside the build directory.
+For a list of more options when configuring the build, refer to the meson_options.txt file inside the source directory.
 
 Next step is to build and install the GST-MFX plugins:
 

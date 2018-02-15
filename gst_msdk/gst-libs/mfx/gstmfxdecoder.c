@@ -200,6 +200,8 @@ gst_mfx_decoder_finalize (GObject * object)
   g_queue_clear (&decoder->discarded_frames);
 
   close_decoder (decoder);
+  if (decoder->plugin_uid)
+    MFXVideoUSER_UnLoad(decoder->session, decoder->plugin_uid);
   gst_mfx_filter_replace (&decoder->filter, NULL);
   gst_mfx_task_aggregator_unref (decoder->aggregator);
   gst_mfx_task_replace (&decoder->decode, NULL);
@@ -337,7 +339,7 @@ gst_mfx_decoder_create (GstMfxDecoder * decoder,
 {
   decoder->is_autoplugged = is_autoplugged;
   decoder->profile = profile;
-  
+
   decoder->params.mfx.CodecId = profile.codec;
   decoder->params.AsyncDepth = is_autoplugged ? 16 : async_depth;
   if (live_mode) {
@@ -762,7 +764,7 @@ gst_mfx_decoder_decode (GstMfxDecoder * decoder, GstVideoCodecFrame * frame)
           decoder->bitstream = g_byte_array_append (decoder->bitstream,
               decoder->codec_data->data, decoder->codec_data->len);
           decoder->bs.DataLength += decoder->codec_data->len;
-          /* Don't ask me why for VC1 this is required after seeking */
+          /* MSDK ignores the first byte indicating the VC1 profile */
           decoder->bs.DataOffset = 1;
         }
         decoder->was_reset = FALSE;
