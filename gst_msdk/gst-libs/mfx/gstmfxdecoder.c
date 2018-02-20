@@ -61,7 +61,7 @@ struct _GstMfxDecoder
   gboolean has_ready_frames;
   gboolean memtype_is_system;
   gboolean skip_corrupted_frames;
-  gboolean is_autoplugged;
+  gboolean should_overallocate;
   gboolean can_double_deinterlace;
   guint num_partial_frames;
   guint initial_frame_latency;
@@ -201,7 +201,7 @@ gst_mfx_decoder_finalize (GObject * object)
 
   close_decoder (decoder);
   if (decoder->plugin_uid)
-    MFXVideoUSER_UnLoad(decoder->session, decoder->plugin_uid);
+    MFXVideoUSER_UnLoad (decoder->session, decoder->plugin_uid);
   gst_mfx_filter_replace (&decoder->filter, NULL);
   gst_mfx_task_aggregator_unref (decoder->aggregator);
   gst_mfx_task_replace (&decoder->decode, NULL);
@@ -289,7 +289,7 @@ gst_mfx_decoder_reconfigure_params (GstMfxDecoder * decoder)
   /* We may need to overallocate surfaces when used with decodebin
    * TODO: Figure out why jerky playback issues occur with decodebin
    * and remove this hack */
-  if (decoder->is_autoplugged) {
+  if (decoder->should_overallocate) {
     decoder->params.mfx.CodecLevel = 0;
     decoder->params.mfx.MaxDecFrameBuffering = 0;
   }
@@ -335,17 +335,17 @@ static gboolean
 gst_mfx_decoder_create (GstMfxDecoder * decoder,
     GstMfxTaskAggregator * aggregator, GstMfxProfile profile,
     GByteArray * codec_data, mfxU16 async_depth,
-    gboolean live_mode, gboolean is_autoplugged)
+    gboolean live_mode, gboolean should_overallocate)
 {
-  decoder->is_autoplugged = is_autoplugged;
+  decoder->should_overallocate = should_overallocate;
   decoder->profile = profile;
 
   decoder->params.mfx.CodecId = profile.codec;
-  decoder->params.AsyncDepth = is_autoplugged ? 16 : async_depth;
+  decoder->params.AsyncDepth = async_depth;
   if (live_mode) {
     decoder->params.AsyncDepth = 1;
     decoder->bs.DataFlag = MFX_BITSTREAM_COMPLETE_FRAME;
-    /* This is a special fix for Android Auto / Apple Carplay issues */
+    /* Hack for H264 low-latency streaming */
     if (decoder->params.mfx.CodecId == MFX_CODEC_AVC)
       decoder->params.mfx.DecodedOrder = 1;
   }
@@ -395,7 +395,7 @@ gst_mfx_decoder_class_init (GstMfxDecoderClass * klass)
 GstMfxDecoder *
 gst_mfx_decoder_new (GstMfxTaskAggregator * aggregator, GstMfxProfile profile,
     GByteArray * codec_data, mfxU16 async_depth,
-    gboolean live_mode, gboolean is_autoplugged)
+    gboolean live_mode, gboolean should_overallocate)
 {
   GstMfxDecoder *decoder;
 
@@ -406,7 +406,7 @@ gst_mfx_decoder_new (GstMfxTaskAggregator * aggregator, GstMfxProfile profile,
     return NULL;
 
   if (!gst_mfx_decoder_create (decoder, aggregator, profile, codec_data,
-          async_depth, live_mode, is_autoplugged))
+          async_depth, live_mode, should_overallocate))
     goto error;
   return decoder;
 
@@ -470,6 +470,7 @@ configure_filter (GstMfxDecoder * decoder)
     decoder->request.Type |=
         MFX_MEMTYPE_EXTERNAL_FRAME | MFX_MEMTYPE_FROM_DECODE;
     decoder->request.NumFrameSuggested += (1 - decoder->params.AsyncDepth);
+    decoder->request.NumFrameMin += (1 - decoder->params.AsyncDepth);
 
     gst_mfx_task_set_request (decoder->decode, &decoder->request);
 
@@ -589,9 +590,12 @@ gst_mfx_decoder_prepare (GstMfxDecoder * decoder)
   }
 
   decoder->memtype_is_system =
-      ! !(decoder->params.IOPattern & MFX_IOPATTERN_OUT_SYSTEM_MEMORY);
+      !!(decoder->params.IOPattern & MFX_IOPATTERN_OUT_SYSTEM_MEMORY);
   decoder->request.Type = decoder->memtype_is_system ?
       MFX_MEMTYPE_SYSTEM_MEMORY : MFX_MEMTYPE_VIDEO_MEMORY_DECODER_TARGET;
+
+  if (decoder->should_overallocate)
+    decoder->request.NumFrameSuggested += 10; // adjust to avoid stutter
 
   if (decoder->memtype_is_system)
     gst_mfx_task_ensure_memtype_is_system (decoder->decode);

@@ -460,6 +460,7 @@ gst_mfxpostproc_ensure_filter (GstMfxPostproc * vpp)
     vpp->async_depth = gst_mfx_task_get_video_params (task)->AsyncDepth;
     request->Type |= MFX_MEMTYPE_EXTERNAL_FRAME | MFX_MEMTYPE_FROM_DECODE;
     request->NumFrameSuggested += (1 - vpp->async_depth);
+    request->NumFrameMin += (1 - vpp->async_depth);
 
     gst_mfx_filter_set_frame_info (vpp->filter, &request->Info);
     if (request->Info.FourCC != gst_video_format_to_mfx_fourcc (vpp->format))
@@ -1063,6 +1064,7 @@ gst_mfxpostproc_stop (GstBaseTransform * trans)
 
   gst_video_info_init (&vpp->sinkpad_info);
   gst_video_info_init (&vpp->srcpad_info);
+  vpp->flags = 0;
 
   gst_base_transform_set_passthrough (GST_BASE_TRANSFORM (vpp), FALSE);
   gst_mfxpostproc_destroy (vpp);
