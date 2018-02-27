@@ -762,6 +762,7 @@ gst_mfx_filter_set_detail_level (GstMfxFilter * filter, guint level)
 {
   GstMfxFilterOpData *op;
   mfxExtVPPDetail *ext_detail;
+
   g_return_val_if_fail (filter != NULL, FALSE);
   g_return_val_if_fail (level <= 100, FALSE);
 
