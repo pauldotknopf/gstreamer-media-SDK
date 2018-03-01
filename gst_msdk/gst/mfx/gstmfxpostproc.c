@@ -95,6 +95,10 @@ enum
   PROP_BRIGHTNESS,
   PROP_CONTRAST,
   PROP_ROTATION,
+#if MSDK_CHECK_VERSION(1,19)
+  PROP_MIRRORING,
+  PROP_SCALING_MODE,
+#endif // MSDK_CHECK_VERSION
   PROP_FRAMERATE,
   PROP_FRC_ALGORITHM,
 };
@@ -118,12 +122,9 @@ static GType gst_mfx_deinterlace_mode_get_type (void)
   static GType deinterlace_mode_type = 0;
 
   static const GEnumValue mode_types[] = {
-    {GST_MFX_DEINTERLACE_MODE_AUTO,
-        "Auto detection", "auto"},
-    {GST_MFX_DEINTERLACE_MODE_FORCED,
-        "Force deinterlacing", "forced"},
-    {GST_MFX_DEINTERLACE_MODE_DISABLED,
-        "Never deinterlace", "disabled"},
+    {GST_MFX_DEINTERLACE_MODE_AUTO, "Auto detection", "auto"},
+    {GST_MFX_DEINTERLACE_MODE_FORCED, "Force deinterlacing", "forced"},
+    {GST_MFX_DEINTERLACE_MODE_DISABLED, "Never deinterlace", "disabled"},
     {0, NULL, NULL},
   };
 
@@ -140,14 +141,10 @@ gst_mfx_rotation_get_type (void)
   static volatile gsize g_type = 0;
 
   static const GEnumValue rotation_values[] = {
-    {GST_MFX_ROTATION_0,
-        "Unrotated", "0"},
-    {GST_MFX_ROTATION_90,
-        "Rotate by 90 degrees clockwise", "90"},
-    {GST_MFX_ROTATION_180,
-        "Rotate by 180  degrees clockwise", "180"},
-    {GST_MFX_ROTATION_270,
-        "Rotate by 270  degrees clockwise", "270"},
+    {GST_MFX_ROTATION_0, "Unrotated", "0"},
+    {GST_MFX_ROTATION_90, "Rotate by 90 degrees clockwise", "90"},
+    {GST_MFX_ROTATION_180, "Rotate by 180  degrees clockwise", "180"},
+    {GST_MFX_ROTATION_270, "Rotate by 270  degrees clockwise", "270"},
     {0, NULL, NULL},
   };
 
@@ -157,6 +154,46 @@ gst_mfx_rotation_get_type (void)
   }
   return g_type;
 }
+
+#if MSDK_CHECK_VERSION(1,19)
+GType
+gst_mfx_mirroring_get_type (void)
+{
+  static volatile gsize g_type = 0;
+
+  static const GEnumValue mirror_values[] = {
+    {GST_MFX_MIRRORING_DISABLED, "No mirroring", "disabled"},
+    {GST_MFX_MIRRORING_HORIZONTAL, "Mirror horizontally", "horizontal"},
+    {GST_MFX_MIRRORING_VERTICAL, "Mirror vertically", "vertical"},
+    {0, NULL, NULL},
+  };
+
+  if (g_once_init_enter (&g_type)) {
+    GType type = g_enum_register_static ("GstMfxMirroring", mirror_values);
+    g_once_init_leave (&g_type, type);
+  }
+  return g_type;
+}
+
+GType
+gst_mfx_scaling_mode_get_type (void)
+{
+  static volatile gsize g_type = 0;
+
+  static const GEnumValue scaling_values[] = {
+    {GST_MFX_SCALING_DEFAULT, "Default scaling", "default"},
+    {GST_MFX_SCALING_LOWPOWER, "Low power scaling", "lowpower"},
+    {GST_MFX_SCALING_QUALITY, "High performance quality scaling", "quality"},
+    {0, NULL, NULL},
+  };
+
+  if (g_once_init_enter (&g_type)) {
+    GType type = g_enum_register_static ("GstMfxScalingMode", scaling_values);
+    g_once_init_leave (&g_type, type);
+  }
+  return g_type;
+}
+#endif // MSDK_CHECK_VERSION
 
 GType
 gst_mfx_deinterlace_method_get_type (void)
@@ -826,7 +863,7 @@ gst_mfxpostproc_transform_caps_impl (GstBaseTransform * trans,
   GstMfxCapsFeature feature;
   const gchar *feature_str;
   guint width, height;
-  gboolean has_gl_texture_sharing = FALSE, use_10bpp = FALSE;
+  gboolean has_gl_texture_sharing = FALSE, use_10bpc = FALSE;
 
   /* Generate the sink pad caps, that could be fixated afterwards */
   if (direction == GST_PAD_SRC) {
@@ -915,13 +952,16 @@ gst_mfxpostproc_transform_caps_impl (GstBaseTransform * trans,
    * P010 to NV12 / BGRA CSC needs to be performed for VPP on Linux. */
 #ifdef WITH_D3D11_BACKEND
 # if GST_CHECK_VERSION(1,9,1)
-  use_10bpp = GST_VIDEO_INFO_FORMAT (&vi) == GST_VIDEO_FORMAT_P010_10LE;
+  use_10bpc = GST_VIDEO_INFO_FORMAT (&vi) == GST_VIDEO_FORMAT_P010_10LE;
 # endif // GST_CHECK_VERSION
 #endif // WITH_D3D11_BACKEND
 
   feature =
       gst_mfx_find_preferred_caps_feature (GST_BASE_TRANSFORM_SRC_PAD (trans),
-        use_10bpp, has_gl_texture_sharing, &out_format);
+        use_10bpc, has_gl_texture_sharing, &out_format);
+
+  if (GST_MFX_CAPS_FEATURE_SYSTEM_MEMORY == feature)
+    plugin->can_export_gl_textures = FALSE;
 
   gst_video_info_change_format (&vi, out_format, width, height);
   GST_VIDEO_INFO_COLORIMETRY (&vi) = out_colorimetry;
@@ -929,7 +969,6 @@ gst_mfxpostproc_transform_caps_impl (GstBaseTransform * trans,
   out_caps = gst_video_info_to_caps (&vi);
   if (!out_caps)
     return NULL;
-
 
   if (feature) {
     feature_str = gst_mfx_caps_feature_to_string (feature);
@@ -973,37 +1012,55 @@ gst_mfxpostproc_create (GstMfxPostproc * vpp)
       GST_VIDEO_INFO_WIDTH (&vpp->srcpad_info),
       GST_VIDEO_INFO_HEIGHT (&vpp->srcpad_info));
 
+  /* Force procamp filters to be initialized for dynamic color balance */
+  if (!gst_mfx_filter_set_hue (vpp->filter, vpp->hue))
+    vpp->flags &= ~GST_MFX_POSTPROC_FLAG_HUE;
+
+  if (!gst_mfx_filter_set_saturation (vpp->filter, vpp->saturation))
+    vpp->flags &= ~GST_MFX_POSTPROC_FLAG_SATURATION;
+
+  if (!gst_mfx_filter_set_brightness (vpp->filter, vpp->brightness))
+    vpp->flags &= ~GST_MFX_POSTPROC_FLAG_BRIGHTNESS;
+
+  if (!gst_mfx_filter_set_contrast (vpp->filter, vpp->contrast))
+    vpp->flags &= ~GST_MFX_POSTPROC_FLAG_CONTRAST;
+
   if (vpp->flags & GST_MFX_POSTPROC_FLAG_FORMAT)
     gst_mfx_filter_set_format (vpp->filter,
         gst_video_format_to_mfx_fourcc (vpp->format));
 
   if (vpp->flags & GST_MFX_POSTPROC_FLAG_DENOISE)
-    gst_mfx_filter_set_denoising_level (vpp->filter, vpp->denoise_level);
+    if (!gst_mfx_filter_set_denoising_level (vpp->filter, vpp->denoise_level))
+      vpp->flags &= ~GST_MFX_POSTPROC_FLAG_DENOISE;
 
   if (vpp->flags & GST_MFX_POSTPROC_FLAG_DETAIL)
-    gst_mfx_filter_set_detail_level (vpp->filter, vpp->detail_level);
-
-  if (vpp->flags & GST_MFX_POSTPROC_FLAG_HUE)
-    gst_mfx_filter_set_hue (vpp->filter, vpp->hue);
-
-  if (vpp->flags & GST_MFX_POSTPROC_FLAG_SATURATION)
-    gst_mfx_filter_set_saturation (vpp->filter, vpp->saturation);
-
-  if (vpp->flags & GST_MFX_POSTPROC_FLAG_BRIGHTNESS)
-    gst_mfx_filter_set_brightness (vpp->filter, vpp->brightness);
-
-  if (vpp->flags & GST_MFX_POSTPROC_FLAG_CONTRAST)
-    gst_mfx_filter_set_contrast (vpp->filter, vpp->contrast);
+    if (!gst_mfx_filter_set_detail_level (vpp->filter, vpp->detail_level))
+      vpp->flags &= ~GST_MFX_POSTPROC_FLAG_DETAIL;
 
   if (vpp->flags & GST_MFX_POSTPROC_FLAG_ROTATION)
-    gst_mfx_filter_set_rotation (vpp->filter, vpp->angle);
+    if (!gst_mfx_filter_set_rotation (vpp->filter, vpp->angle))
+      vpp->flags &= ~GST_MFX_POSTPROC_FLAG_ROTATION;
+
+#if MSDK_CHECK_VERSION(1,19)
+  if (vpp->flags & GST_MFX_POSTPROC_FLAG_MIRRORING)
+    if (!gst_mfx_filter_set_mirroring (vpp->filter, vpp->mode))
+      vpp->flags &= ~GST_MFX_POSTPROC_FLAG_MIRRORING;
+
+  if (vpp->flags & GST_MFX_POSTPROC_FLAG_SCALING)
+    if (!gst_mfx_filter_set_scaling_mode (vpp->filter, vpp->scaling))
+      vpp->flags &= ~GST_MFX_POSTPROC_FLAG_SCALING;
+#endif // MSDK_CHECK_VERSION
+
   if (vpp->flags & GST_MFX_POSTPROC_FLAG_DEINTERLACING)
-    gst_mfx_filter_set_deinterlace_method (vpp->filter,
-        vpp->deinterlace_method);
+    if (!gst_mfx_filter_set_deinterlace_method (vpp->filter,
+        vpp->deinterlace_method))
+      vpp->flags &= ~GST_MFX_POSTPROC_FLAG_DEINTERLACING;
 
   if (vpp->fps_n && vpp->flags & GST_MFX_POSTPROC_FLAG_FRC) {
-    gst_mfx_filter_set_frc_algorithm (vpp->filter, vpp->alg);
-    gst_mfx_filter_set_framerate (vpp->filter, vpp->fps_n, vpp->fps_d);
+    if (!gst_mfx_filter_set_frc_algorithm (vpp->filter, vpp->alg))
+      vpp->flags &= ~GST_MFX_POSTPROC_FLAG_FRC;
+    else
+      gst_mfx_filter_set_framerate (vpp->filter, vpp->fps_n, vpp->fps_d);
   }
 
   return gst_mfx_filter_prepare (vpp->filter);
@@ -1148,6 +1205,17 @@ gst_mfxpostproc_set_property (GObject * object,
       vpp->angle = g_value_get_enum (value);
       vpp->flags |= GST_MFX_POSTPROC_FLAG_ROTATION;
       break;
+#if MSDK_CHECK_VERSION(1,19)
+    case PROP_MIRRORING:
+      vpp->mode = g_value_get_enum (value);
+      vpp->flags |= GST_MFX_POSTPROC_FLAG_MIRRORING;
+      break;
+
+    case PROP_SCALING_MODE:
+      vpp->scaling = g_value_get_enum (value);
+      vpp->flags |= GST_MFX_POSTPROC_FLAG_SCALING;
+      break;
+#endif // MSDK_CHECK_VERSION
     case PROP_FRAMERATE:
       vpp->fps_n = gst_value_get_fraction_numerator (value);
       vpp->fps_d = gst_value_get_fraction_denominator (value);
@@ -1210,6 +1278,14 @@ gst_mfxpostproc_get_property (GObject * object,
     case PROP_ROTATION:
       g_value_set_enum (value, vpp->angle);
       break;
+#if MSDK_CHECK_VERSION(1,19)
+    case PROP_MIRRORING:
+      g_value_set_enum (value, vpp->mode);
+      break;
+    case PROP_SCALING_MODE:
+      g_value_set_enum (value, vpp->scaling);
+      break;
+#endif // MSDK_CHECK_VERSION
     case PROP_FRAMERATE:
       if (vpp->fps_n && vpp->fps_d)
         gst_value_set_fraction (value, vpp->fps_n, vpp->fps_d);
@@ -1450,6 +1526,36 @@ gst_mfxpostproc_class_init (GstMfxPostprocClass * klass)
           "The rotation angle",
           GST_MFX_TYPE_ROTATION,
           DEFAULT_ROTATION, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+#if MSDK_CHECK_VERSION(1,19)
+  /**
+   * GstMfxPostproc:mirror
+   *
+   * The mirror mode for the surface, expressed in GstMfxMirroring.
+   */
+  g_object_class_install_property (object_class,
+      PROP_MIRRORING,
+      g_param_spec_enum ("mirror",
+          "Mirror",
+          "The mirroring mode",
+          GST_MFX_TYPE_MIRRORING,
+          GST_MFX_MIRRORING_DISABLED,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
+  /**
+   * GstMfxPostproc:scaling-mode
+   *
+   * The scaling mode used during VPP scaling, expressed in GstMfxScalingMode.
+   */
+  g_object_class_install_property (object_class,
+      PROP_SCALING_MODE,
+      g_param_spec_enum ("scaling-mode",
+          "Scaling mode",
+          "The scaling mode used during VPP scaling",
+          GST_MFX_TYPE_SCALING_MODE,
+          GST_MFX_SCALING_DEFAULT,
+          G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+#endif // MSDK_CHECK_VERSION
 
   /**
    * GstMfxPostproc: frc-algorithm

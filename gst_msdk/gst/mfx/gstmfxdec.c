@@ -235,6 +235,8 @@ gst_mfxdec_update_src_caps (GstMfxDec * mfxdec)
 #ifdef HAVE_GST_GL_LIBS
   else if (GST_MFX_CAPS_FEATURE_GL_MEMORY == feature)
     features = gst_caps_features_new (GST_CAPS_FEATURE_MEMORY_GL_MEMORY, NULL);
+  else
+    plugin->can_export_gl_textures = FALSE;
 #endif
 
   state = gst_video_decoder_set_output_state (vdec, output_format,
