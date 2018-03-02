@@ -960,8 +960,10 @@ gst_mfxpostproc_transform_caps_impl (GstBaseTransform * trans,
       gst_mfx_find_preferred_caps_feature (GST_BASE_TRANSFORM_SRC_PAD (trans),
         use_10bpc, has_gl_texture_sharing, &out_format);
 
-  if (GST_MFX_CAPS_FEATURE_SYSTEM_MEMORY == feature)
+#ifdef HAVE_GST_GL_LIBS
+  if (GST_MFX_CAPS_FEATURE_GL_MEMORY != feature)
     plugin->can_export_gl_textures = FALSE;
+#endif // HAVE_GST_GL_LIBS
 
   gst_video_info_change_format (&vi, out_format, width, height);
   GST_VIDEO_INFO_COLORIMETRY (&vi) = out_colorimetry;
