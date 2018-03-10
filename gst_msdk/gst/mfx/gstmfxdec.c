@@ -76,7 +76,7 @@ static const char gst_mfxdecode_src_caps_str[] =
     GST_MFX_MAKE_OUTPUT_SURFACE_CAPS ";"
 #ifdef HAVE_GST_GL_LIBS
     GST_VIDEO_CAPS_MAKE_WITH_FEATURES (GST_CAPS_FEATURE_MEMORY_GL_MEMORY,
-      "{ RGBA, BGRA }") ";"
+      "{ RGBA }") ";"
 #endif
     GST_VIDEO_CAPS_MAKE (GST_MFX_SUPPORTED_OUTPUT_FORMATS);
 
@@ -252,7 +252,8 @@ gst_mfxdec_update_src_caps (GstMfxDec * mfxdec)
   gst_caps_replace (&mfxdec->srcpad_caps, state->caps);
   gst_video_codec_state_unref (state);
 
-  gst_mfx_decoder_set_video_info (mfxdec->decoder, vi);
+  /* Update video info after parsing */
+  gst_mfx_decoder_update_video_info (mfxdec->decoder, vi);
 
   return TRUE;
 }
@@ -371,7 +372,7 @@ gst_mfxdec_create (GstMfxDec * mfxdec, GstCaps * caps)
   if (!mfxdec->decoder)
     return FALSE;
 
-  gst_mfx_decoder_set_video_info (mfxdec->decoder, &info);
+  gst_mfx_decoder_update_video_info (mfxdec->decoder, &info);
 
   if (mfxdec->skip_corrupted_frames)
     gst_mfx_decoder_skip_corrupted_frames (mfxdec->decoder);

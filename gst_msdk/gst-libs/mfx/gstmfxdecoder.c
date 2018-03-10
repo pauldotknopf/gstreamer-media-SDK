@@ -76,7 +76,7 @@ struct _GstMfxDecoder
 G_DEFINE_TYPE (GstMfxDecoder, gst_mfx_decoder, GST_TYPE_OBJECT);
 
 void
-gst_mfx_decoder_set_video_info (GstMfxDecoder * decoder,
+gst_mfx_decoder_update_video_info (GstMfxDecoder * decoder,
     const GstVideoInfo * info)
 {
   g_return_if_fail (decoder != NULL);
@@ -86,6 +86,22 @@ gst_mfx_decoder_set_video_info (GstMfxDecoder * decoder,
     decoder->info.fps_n = 30;
   decoder->duration =
     (decoder->info.fps_d / (gdouble) decoder->info.fps_n) * 1000000000;
+
+  /* Update mfxFrameInfo for interlaced streams */
+  if (GST_VIDEO_INFO_IS_INTERLACED (&decoder->info)) {
+    mfxFrameAllocRequest *request = gst_mfx_task_get_request (decoder->decode);
+    mfxFrameInfo *frame_info = &decoder->params.mfx.FrameInfo;
+
+    frame_info->PicStruct = GST_VIDEO_INFO_FLAG_IS_SET (&decoder->info,
+        GST_VIDEO_FRAME_FLAG_TFF) ?
+        MFX_PICSTRUCT_FIELD_TFF : MFX_PICSTRUCT_FIELD_BFF;
+    frame_info->FrameRateExtN = decoder->info.fps_n;
+    frame_info->FrameRateExtD = decoder->info.fps_d;
+
+    request->Info.PicStruct = frame_info->PicStruct;
+    request->Info.FrameRateExtN = frame_info->FrameRateExtN;
+    request->Info.FrameRateExtD = frame_info->FrameRateExtD;
+  }
 }
 
 const mfxFrameAllocRequest *
@@ -119,31 +135,9 @@ void
 gst_mfx_decoder_decide_output_memtype (GstMfxDecoder * decoder,
     gboolean memtype_is_video)
 {
-  mfxVideoParam *params;
-
   g_return_if_fail (decoder != NULL);
 
-  /* The decoder may be forced to use system memory by a downstream peer
-   * MFX VPP task, or due to decoder limitations for that particular
-   * codec. In that case, return to confirm the use of system memory */
-  params = gst_mfx_task_get_video_params (decoder->decode);
-
-  if (params->IOPattern & MFX_IOPATTERN_OUT_SYSTEM_MEMORY) {
-    decoder->memtype_is_system = TRUE;
-    gst_mfx_task_ensure_memtype_is_system (decoder->decode);
-    return;
-  }
-
-  if (memtype_is_video) {
-    decoder->params.IOPattern = MFX_IOPATTERN_OUT_VIDEO_MEMORY;
-  } else {
-    decoder->memtype_is_system = TRUE;
-    decoder->params.IOPattern = MFX_IOPATTERN_OUT_SYSTEM_MEMORY;
-    gst_mfx_task_ensure_memtype_is_system (decoder->decode);
-  }
-
-  if (gst_mfx_task_get_task_type (decoder->decode) == GST_MFX_TASK_DECODER)
-    params->IOPattern = decoder->params.IOPattern;
+  decoder->memtype_is_system = !memtype_is_video;
 }
 
 static gboolean
@@ -264,12 +258,6 @@ static void
 gst_mfx_decoder_reconfigure_params (GstMfxDecoder * decoder)
 {
   mfxFrameInfo *frame_info = &decoder->params.mfx.FrameInfo;
-
-  frame_info->PicStruct = GST_VIDEO_INFO_IS_INTERLACED (&decoder->info) ?
-      (GST_VIDEO_INFO_FLAG_IS_SET (&decoder->info,
-          GST_VIDEO_FRAME_FLAG_TFF) ? MFX_PICSTRUCT_FIELD_TFF :
-      MFX_PICSTRUCT_FIELD_BFF)
-      : MFX_PICSTRUCT_PROGRESSIVE;
 
   if (decoder->profile.codec == MFX_CODEC_VP8
 #if MSDK_CHECK_VERSION(1,19)
@@ -443,7 +431,8 @@ configure_filter (GstMfxDecoder * decoder)
 {
   mfxU32 output_format =
       gst_video_format_to_mfx_fourcc (GST_VIDEO_INFO_FORMAT (&decoder->info));
-  mfxU32 decode_format = decoder->params.mfx.FrameInfo.FourCC;
+  mfxFrameInfo *frame_info = &decoder->params.mfx.FrameInfo;
+  mfxU32 decode_format = frame_info->FourCC;
   gboolean enable_csc = FALSE, enable_deinterlace = FALSE;
 
   if (output_format != decode_format)
@@ -461,7 +450,8 @@ configure_filter (GstMfxDecoder * decoder)
   if (enable_csc || enable_deinterlace) {
     decoder->filter = gst_mfx_filter_new_with_task (decoder->aggregator,
         decoder->decode, GST_MFX_TASK_VPP_IN,
-        decoder->memtype_is_system, decoder->memtype_is_system);
+        !!(decoder->params.IOPattern & MFX_IOPATTERN_OUT_SYSTEM_MEMORY),
+        decoder->memtype_is_system);
     if (!decoder->filter) {
       GST_ERROR ("Unable to initialize filter.");
       return FALSE;
@@ -474,8 +464,7 @@ configure_filter (GstMfxDecoder * decoder)
 
     gst_mfx_task_set_request (decoder->decode, &decoder->request);
 
-    gst_mfx_filter_set_frame_info (decoder->filter,
-        &decoder->params.mfx.FrameInfo);
+    gst_mfx_filter_set_frame_info (decoder->filter, frame_info);
     if (enable_csc)
       gst_mfx_filter_set_format (decoder->filter, output_format);
     if (enable_deinterlace) {
@@ -502,28 +491,29 @@ error:
 static GstMfxDecoderStatus
 gst_mfx_decoder_start (GstMfxDecoder * decoder)
 {
-  /* Get updated video params if modified by peer MFX element */
-  gst_mfx_task_update_video_params (decoder->decode, &decoder->params);
-
-  if (decoder->params.IOPattern & MFX_IOPATTERN_OUT_VIDEO_MEMORY) {
-    decoder->memtype_is_system = FALSE;
-    gst_mfx_task_use_video_memory (decoder->decode);
-  } else {
-    decoder->memtype_is_system = TRUE;
-    gst_mfx_task_ensure_memtype_is_system (decoder->decode);
-  }
-
   if (!decoder->filter
       && gst_mfx_task_get_task_type (decoder->decode) == GST_MFX_TASK_DECODER) {
     if (!configure_filter (decoder))
       return GST_MFX_DECODER_STATUS_ERROR_INIT_FAILED;
   }
 
+  /* Get updated video params if modified by peer MFX element */
+  gst_mfx_task_update_video_params (decoder->decode, &decoder->params);
+
+  if (gst_mfx_task_get_task_type (decoder->decode) == GST_MFX_TASK_DECODER
+      && decoder->memtype_is_system)
+    decoder->params.IOPattern = MFX_IOPATTERN_OUT_SYSTEM_MEMORY;
+
+  if (!!(decoder->params.IOPattern & MFX_IOPATTERN_OUT_VIDEO_MEMORY)) {
+    gst_mfx_task_use_video_memory (decoder->decode);
+    GST_INFO ("Initialized MFX decoder using output video memory surfaces");
+  } else {
+    gst_mfx_task_ensure_memtype_is_system (decoder->decode);
+    GST_INFO ("Initialized MFX decoder using output system memory surfaces");
+  }
+
   if (!init_decoder (decoder))
     return GST_MFX_DECODER_STATUS_ERROR_INIT_FAILED;
-
-  GST_INFO ("Initialized MFX decoder task using %s memory",
-      decoder->memtype_is_system ? "system" : "video");
 
   return GST_MFX_DECODER_STATUS_SUCCESS;
 }
