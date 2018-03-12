@@ -32,6 +32,7 @@
 #include <mfxplugin.h>
 
 G_BEGIN_DECLS
+
 #define GST_MFX_ENCODER_CAST(encoder) \
   ((GstMfxEncoder *)(encoder))
 #define GST_MFX_ENCODER_GET_PRIVATE(encoder) \
@@ -40,6 +41,7 @@ G_BEGIN_DECLS
   ((GstMfxEncoderClass *)(klass))
 #define GST_MFX_ENCODER_GET_CLASS(obj) \
   GST_MFX_ENCODER_CLASS(GST_OBJECT_GET_CLASS(obj))
+
 /**
  * GST_MFX_ENCODER_VIDEO_INFO:
  * @encoder: a #GstMfxEncoder
@@ -50,6 +52,7 @@ G_BEGIN_DECLS
 #undef  GST_MFX_ENCODER_VIDEO_INFO
 #define GST_MFX_ENCODER_VIDEO_INFO(encoder) \
   (&(encoder)->info)
+
 /**
  * GST_MFX_ENCODER_WIDTH:
  * @encoder: a #GstMfxEncoder
@@ -60,6 +63,7 @@ G_BEGIN_DECLS
 #undef  GST_MFX_ENCODER_WIDTH
 #define GST_MFX_ENCODER_WIDTH(encoder) \
   (GST_MFX_ENCODER_VIDEO_INFO (encoder)->width)
+
 /**
  * GST_MFX_ENCODER_HEIGHT:
  * @encoder: a #GstMfxEncoder
@@ -70,6 +74,7 @@ G_BEGIN_DECLS
 #undef  GST_MFX_ENCODER_HEIGHT
 #define GST_MFX_ENCODER_HEIGHT(encoder) \
   (GST_MFX_ENCODER_VIDEO_INFO (encoder)->height)
+
 /**
  * GST_MFX_ENCODER_FPS_N:
  * @encoder: a #GstMfxEncoder
@@ -80,6 +85,7 @@ G_BEGIN_DECLS
 #undef  GST_MFX_ENCODER_FPS_N
 #define GST_MFX_ENCODER_FPS_N(encoder) \
   (GST_MFX_ENCODER_VIDEO_INFO (encoder)->fps_n)
+
 /**
  * GST_MFX_ENCODER_FPS_D:
  * @encoder: a #GstMfxEncoder
@@ -90,6 +96,7 @@ G_BEGIN_DECLS
 #undef  GST_MFX_ENCODER_FPS_D
 #define GST_MFX_ENCODER_FPS_D(encoder) \
   (GST_MFX_ENCODER_VIDEO_INFO (encoder)->fps_d)
+
 /**
  * GST_MFX_ENCODER_RATE_CONTROL:
  * @encoder: a #GstMfxEncoder
@@ -100,6 +107,7 @@ G_BEGIN_DECLS
 #undef  GST_MFX_ENCODER_RATE_CONTROL
 #define GST_MFX_ENCODER_RATE_CONTROL(encoder) \
   ((encoder)->rc_method)
+
 /**
  * GST_MFX_ENCODER_PRESET
  * @encoder: a #GstMfxEncoder
@@ -107,11 +115,13 @@ G_BEGIN_DECLS
  * Macro that evaluates to the target usage option.
  * This is an internal macro that does not do any run-time type check.
  */
+
 #undef  GST_MFX_ENCODER_PRESET
 #define GST_MFX_ENCODER_PRESET(encoder) \
   (GST_MFX_ENCODER_CAST (encoder)->preset)
 #define GST_MFX_TYPE_ENCODER_PRESET \
   (gst_mfx_encoder_preset_get_type ())
+
 typedef struct _GstMfxEncoderClass GstMfxEncoderClass;
 typedef struct _GstMfxEncoderClassData GstMfxEncoderClassData;
 
@@ -186,8 +196,8 @@ struct _GstMfxEncoderPrivate
   mfxExtCodingOption extco;
   mfxExtCodingOption2 extco2;
   mfxExtHEVCParam exthevc;
-  mfxExtBuffer *extparam_internal[3];
-  int nb_extparam_internal;
+  mfxExtVideoSignalInfo extsig;
+  mfxExtBuffer *extparam_internal[4];
 
   /* H264 specific coding options */
   gboolean use_cabac;
@@ -258,12 +268,10 @@ struct _GstMfxEncoderClass
   gboolean (*load_plugin) (GstMfxEncoder * encoder);
 };
 
-
 GstMfxEncoder *
 gst_mfx_encoder_new (GstMfxEncoder * encoder,
     GstMfxTaskAggregator * aggregator,
     const GstVideoInfo * info, gboolean mapped);
-
 
 G_END_DECLS
 #endif /* GST_MFX_ENCODER_PRIV_H */

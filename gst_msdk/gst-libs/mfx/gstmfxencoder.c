@@ -407,6 +407,121 @@ gst_mfx_encoder_properties_get_default (const GstMfxEncoderClass * klass)
 }
 
 static void
+gst_mfx_encoder_extsig_from_colorimetry (GstMfxEncoder * encoder,
+    GstVideoColorimetry * colorimetry)
+{
+  GstMfxEncoderPrivate *const priv = GST_MFX_ENCODER_GET_PRIVATE (encoder);
+
+  if (priv->extsig.ColourDescriptionPresent) {
+    gboolean encoder_format = priv->params.mfx.FrameInfo.FourCC;
+
+    priv->extsig.Header.BufferId = MFX_EXTBUFF_VIDEO_SIGNAL_INFO;
+    priv->extsig.Header.BufferSz = sizeof (mfxExtVideoSignalInfo);
+    priv->extsig.VideoFormat = 5; /*  unspecified */
+
+    switch (colorimetry->range) {
+      case GST_VIDEO_COLOR_RANGE_16_235:
+        priv->extsig.VideoFullRange = 0; /* not full range */
+        break;
+      case GST_VIDEO_COLOR_RANGE_0_255:
+        priv->extsig.VideoFullRange = 1; /* full range */
+        break;
+      default:
+        priv->extsig.VideoFullRange = 0;
+        break;
+    }
+
+    switch (colorimetry->primaries) {
+      case GST_VIDEO_COLOR_PRIMARIES_BT709:
+        priv->extsig.ColourPrimaries = 1; /* BT709 */
+        break;
+      case GST_VIDEO_COLOR_PRIMARIES_BT470M:
+        priv->extsig.ColourPrimaries = 4; /* BT470M */
+        break;
+      case GST_VIDEO_COLOR_PRIMARIES_BT470BG:
+        priv->extsig.ColourPrimaries = 5; /* 470BG */
+        break;
+      case GST_VIDEO_COLOR_PRIMARIES_SMPTE170M:
+        priv->extsig.ColourPrimaries = 6; /* SMPTE170M */
+        break;
+      case GST_VIDEO_COLOR_PRIMARIES_SMPTE240M:
+        priv->extsig.ColourPrimaries = 7; /* SMPTE240M */
+        break;
+      case GST_VIDEO_COLOR_PRIMARIES_FILM:
+        priv->extsig.ColourPrimaries = 8; /* Generic film */
+        break;
+      case GST_VIDEO_COLOR_PRIMARIES_BT2020:
+        if (MFX_FOURCC_P010 == encoder_format) {
+          priv->extsig.MatrixCoefficients = 9; /* BT2020 */
+          break;
+        }
+      default:
+        priv->extsig.ColourPrimaries = 2; /* Unspecified */
+        break;
+    }
+
+    switch (colorimetry->transfer) {
+      case GST_VIDEO_TRANSFER_BT709:
+        priv->extsig.TransferCharacteristics = 1; /* BT709 */
+        break;
+      case GST_VIDEO_TRANSFER_GAMMA22:
+        priv->extsig.TransferCharacteristics = 4; /* BT470M */
+        break;
+      case GST_VIDEO_TRANSFER_GAMMA28:
+        priv->extsig.TransferCharacteristics = 5; /* BT470BG */
+        break;
+      /* We skip #6 (SMPTE170M) as it seems to be the same as BT709 */
+      case GST_VIDEO_TRANSFER_SMPTE240M:
+        priv->extsig.TransferCharacteristics = 7; /* BT709 */
+        break;
+      case GST_VIDEO_TRANSFER_GAMMA10:
+        priv->extsig.TransferCharacteristics = 8; /* Linear */
+        break;
+      case GST_VIDEO_TRANSFER_LOG100:
+        priv->extsig.TransferCharacteristics = 9; /* Log (100:1) */
+        break;
+      case GST_VIDEO_TRANSFER_LOG316:
+        priv->extsig.TransferCharacteristics = 10; /* Log (316.23:1) */
+        break;
+      case GST_VIDEO_TRANSFER_BT2020_12:
+        if (MFX_FOURCC_P010 == encoder_format) {
+          priv->extsig.TransferCharacteristics = 16; /* SMPTE ST 2084 PQ */
+          break;
+        }
+      default:
+        priv->extsig.TransferCharacteristics = 2; /* Unspecified */
+        break;
+    }
+
+    switch (colorimetry->matrix) {
+      case GST_VIDEO_COLOR_MATRIX_BT709:
+        priv->extsig.MatrixCoefficients = 1; /* BT709 */
+        break;
+      case GST_VIDEO_COLOR_MATRIX_FCC:
+        priv->extsig.MatrixCoefficients = 4; /* FCC */
+        break;
+      case GST_VIDEO_COLOR_MATRIX_BT601:
+        priv->extsig.MatrixCoefficients = 5; /* BT470BG (seems to be the same as 601) */
+        break;
+      /* We skip #6 (SMPTE170M) as it seems to be the same as BT601 */
+      case GST_VIDEO_COLOR_MATRIX_SMPTE240M:
+        priv->extsig.MatrixCoefficients = 7; /* SMPTE240M */
+        break;
+      case GST_VIDEO_COLOR_MATRIX_BT2020:
+        if (MFX_FOURCC_P010 == encoder_format) {
+          priv->extsig.MatrixCoefficients = 9; /* BT2020 */
+          break;
+        }
+      default:
+        priv->extsig.MatrixCoefficients = 2; /* unspecified */
+        break;
+    }
+    priv->extparam_internal[priv->params.NumExtParam++] =
+        (mfxExtBuffer *) & priv->extsig;
+  }
+}
+
+static void
 gst_mfx_encoder_set_frame_info (GstMfxEncoder * encoder)
 {
   GstMfxEncoderPrivate *const priv = GST_MFX_ENCODER_GET_PRIVATE (encoder);
@@ -423,7 +538,7 @@ gst_mfx_encoder_set_frame_info (GstMfxEncoder * encoder)
     priv->params.mfx.FrameInfo.AspectRatioH = priv->info.par_d;
     priv->params.mfx.FrameInfo.Width = GST_ROUND_UP_32 (priv->info.width);
     priv->params.mfx.FrameInfo.Height = GST_ROUND_UP_32 (priv->info.height);
-
+    
     priv->frame_info = priv->params.mfx.FrameInfo;
     priv->frame_info.PicStruct =
       GST_VIDEO_INFO_IS_INTERLACED (&priv->info) ?
@@ -444,6 +559,8 @@ gst_mfx_encoder_set_frame_info (GstMfxEncoder * encoder)
   }
   /* Encoder expects progressive frames as input */
   priv->params.mfx.FrameInfo.PicStruct = MFX_PICSTRUCT_PROGRESSIVE;
+  if (priv->params.NumExtParam)
+    priv->params.ExtParam = priv->extparam_internal;
 }
 
 static void
@@ -792,8 +909,6 @@ set_extended_coding_options (GstMfxEncoder * encoder)
       (mfxExtBuffer *) & priv->extco;
   priv->extparam_internal[priv->params.NumExtParam++] =
       (mfxExtBuffer *) & priv->extco2;
-
-  priv->params.ExtParam = priv->extparam_internal;
 }
 
 /* Many of the default settings here are inspired by Handbrake */
@@ -887,6 +1002,10 @@ gst_mfx_encoder_set_encoding_params (GstMfxEncoder * encoder)
     priv->params.mfx.Quality = priv->jpeg_quality;
     priv->params.mfx.RestartInterval = 0;
   }
+  /* Write colorimetry information for H264 / HEVC bitstreams */
+  if (MFX_CODEC_AVC == priv->profile.codec
+      || MFX_CODEC_HEVC == priv->profile.codec)
+    priv->extsig.ColourDescriptionPresent = 1;
 }
 
 static gboolean
@@ -936,9 +1055,9 @@ configure_encoder_sharing (GstMfxEncoder * encoder)
       /* Get new VPP output task */
       gst_mfx_task_unref (task);
       task = gst_mfx_task_aggregator_get_last_task (priv->aggregator);
+      /* Get updated output mfxFrameInfo */
+      request = gst_mfx_task_get_request (task);
     }
-    /* Get updated output mfxFrameInfo */
-    request = gst_mfx_task_get_request (task);
 
     /* Share upstream decoder / VPP session with encoder */
     if (encoder_format == request->Info.FourCC) {
@@ -973,11 +1092,11 @@ log_encoder_params_comparison (GstMfxEncoder * encoder, int log_level,
 {
   /* TODO: handle and log more differences. */
   if (param_old->mfx.FrameInfo.Height != param_new->mfx.FrameInfo.Height
-    || param_old->mfx.FrameInfo.Width != param_new->mfx.FrameInfo.Width) {
+      || param_old->mfx.FrameInfo.Width != param_new->mfx.FrameInfo.Width) {
     GST_CAT_LEVEL_LOG (GST_CAT_DEFAULT, log_level, encoder,
-      "resolution has been changed from %dx%d to %dx%d",
-      param_old->mfx.FrameInfo.Width, param_old->mfx.FrameInfo.Height,
-      param_new->mfx.FrameInfo.Width, param_new->mfx.FrameInfo.Height);
+        "resolution has been changed from %dx%d to %dx%d",
+        param_old->mfx.FrameInfo.Width, param_old->mfx.FrameInfo.Height,
+        param_new->mfx.FrameInfo.Width, param_new->mfx.FrameInfo.Height);
   }
 }
 
@@ -1024,6 +1143,10 @@ gst_mfx_encoder_prepare (GstMfxEncoder * encoder)
     if (!klass->load_plugin (encoder))
       return GST_MFX_ENCODER_STATUS_ERROR_OPERATION_FAILED;
 
+  /* Write colorimetry information to bitstream */
+  gst_mfx_encoder_extsig_from_colorimetry (encoder,
+      &GST_VIDEO_INFO_COLORIMETRY (&priv->info));
+
   gst_mfx_encoder_set_frame_info (encoder);
   orig_params = priv->params;
 
@@ -1034,11 +1157,11 @@ gst_mfx_encoder_prepare (GstMfxEncoder * encoder)
   } else if (MFX_WRN_INCOMPATIBLE_VIDEO_PARAM == sts) {
     GST_WARNING ("Incompatible video params detected %d", sts);
     log_encoder_params_comparison (encoder, GST_LEVEL_INFO,
-      &orig_params, &priv->params);
+        &orig_params, &priv->params);
   } else if (MFX_ERR_UNSUPPORTED == sts) {
     GST_ERROR ("Unsupported video params %d", sts);
     log_encoder_params_comparison (encoder, GST_LEVEL_WARNING,
-      &orig_params, &priv->params);
+        &orig_params, &priv->params);
   }
 
   sts = MFXVideoENCODE_QueryIOSurf (priv->session, &priv->params, &enc_request);
