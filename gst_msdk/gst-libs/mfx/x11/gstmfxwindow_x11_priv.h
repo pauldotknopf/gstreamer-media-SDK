@@ -39,7 +39,7 @@ G_BEGIN_DECLS
 typedef struct _GstMfxWindowX11Private GstMfxWindowX11Private;
 struct _GstMfxWindowX11Private
 {
-  GstMfxDisplayX11 *display;
+  GstMfxDisplay *display;
   GstMfxSurface *mapped_surface;
 
   Atom atom_NET_WM_STATE;
@@ -62,14 +62,6 @@ struct _GstMfxWindowX11
   GstMfxWindow parent_instance;
 
   GstMfxWindowX11Private priv;
-};
-
-G_DEFINE_TYPE (GstMfxWindowX11, gst_mfx_window_x11, GST_TYPE_MFX_WINDOW);
-
-struct _GstMfxWindowX11Class
-{
-  /*< private > */
-  GstMfxWindowClass parent_class;
 };
 
 G_END_DECLS

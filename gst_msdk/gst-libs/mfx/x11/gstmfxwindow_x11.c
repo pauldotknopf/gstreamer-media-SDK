@@ -46,6 +46,8 @@
 #define _NET_WM_STATE_ADD       1       /* add/set property      */
 #define _NET_WM_STATE_TOGGLE    2       /* toggle property       */
 
+G_DEFINE_TYPE (GstMfxWindowX11, gst_mfx_window_x11, GST_TYPE_MFX_WINDOW);
+
 static void
 send_wmspec_change_state (GstMfxWindow * window, Atom state, gboolean add)
 {
@@ -243,7 +245,7 @@ gst_mfx_window_x11_create (GstMfxWindow * window, guint * width, guint * height)
     XRaiseWindow (dpy, xid);
   GST_MFX_DISPLAY_UNLOCK (priv2->display);
 
-  GST_MFX_WINDOW_ID (window) = xid;
+  priv->handle = xid;
   return xid != None;
 }
 
@@ -268,7 +270,7 @@ gst_mfx_window_x11_destroy (GstMfxWindow * window)
       XDestroyWindow (dpy, xid);
       GST_MFX_DISPLAY_UNLOCK (priv2->display);
     }
-    GST_MFX_WINDOW_ID (window) = None;
+    priv->handle = None;
   }
   gst_mfx_display_replace (&priv2->display, NULL);
   gst_mfx_surface_replace (&priv2->mapped_surface, NULL);
@@ -395,7 +397,7 @@ gst_mfx_window_x11_render (GstMfxWindow * window,
   unsigned int width, height, border, depth, stride, size;
   xcb_pixmap_t pixmap;
   Picture picture;
-  XRenderPictFormat *pic_fmt;
+  XRenderPictFormat *pic_fmt = NULL;
   XWindowAttributes wattr;
   int fmt = 0, op = 0;
 
@@ -414,8 +416,8 @@ gst_mfx_window_x11_render (GstMfxWindow * window,
           GST_MFX_SURFACE_WIDTH (surface), GST_MFX_SURFACE_HEIGHT (surface));
 
       priv->mapped_surface =
-          gst_mfx_surface_vaapi_new (GST_MFX_WINDOW_GET_PRIVATE (window)->
-          context, &info);
+          gst_mfx_surface_vaapi_new (gst_mfx_window_get_context (window),
+              &info);
     }
 
     if (!gst_mfx_surface_map (priv->mapped_surface))
@@ -465,7 +467,7 @@ gst_mfx_window_x11_render (GstMfxWindow * window,
     case 32:
       fmt = PictStandardARGB32;
       op = PictOpOver;
-    get_pic_fmt:
+get_pic_fmt:
       bpp = 32;
       GST_MFX_DISPLAY_LOCK (priv->display);
       pic_fmt = XRenderFindStandardFormat (display, fmt);

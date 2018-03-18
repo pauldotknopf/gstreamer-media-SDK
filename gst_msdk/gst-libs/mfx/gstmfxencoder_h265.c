@@ -341,7 +341,7 @@ gst_mfx_encoder_h265_set_property (GstMfxEncoder * base_encoder,
 
 GstMfxEncoder *
 gst_mfx_encoder_h265_new (GstMfxTaskAggregator * aggregator,
-    const GstVideoInfo * info, gboolean mapped)
+    const GstVideoInfo * info, gboolean memtype_is_system)
 {
   GstMfxEncoderH265 *encoder;
 
@@ -353,7 +353,7 @@ gst_mfx_encoder_h265_new (GstMfxTaskAggregator * aggregator,
     return NULL;
 
   return gst_mfx_encoder_new (GST_MFX_ENCODER (encoder),
-      aggregator, info, mapped);
+      aggregator, info, memtype_is_system);
 }
 
 /**
@@ -423,6 +423,10 @@ gst_mfx_encoder_h265_finalize (GObject * object)
   GstMfxEncoderH265 *const encoder = GST_MFX_ENCODER_H265_CAST (object);
   GstMfxEncoderPrivate *const priv = GST_MFX_ENCODER_GET_PRIVATE (base_encoder);
 
+  /* MFXVideoUSER_UnLoad() invokes the external frame allocator, so
+   * make sure frame allocator points to the right task
+   * to free up all internally allocated surfaces */
+  gst_mfx_task_aggregator_set_current_task (priv->aggregator, priv->encode);
   MFXVideoUSER_UnLoad (priv->session, encoder->plugin_uid);
 
   G_OBJECT_CLASS (gst_mfx_encoder_h265_parent_class)->finalize (object);

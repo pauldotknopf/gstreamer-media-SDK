@@ -34,13 +34,14 @@
 G_BEGIN_DECLS
 
 #define GST_MFX_ENCODER_CAST(encoder) \
-  ((GstMfxEncoder *)(encoder))
-#define GST_MFX_ENCODER_GET_PRIVATE(encoder) \
-  (GST_MFX_ENCODER_CAST (encoder)->priv)
+    ((GstMfxEncoder *)(encoder))
 #define GST_MFX_ENCODER_CLASS(klass) \
-  ((GstMfxEncoderClass *)(klass))
+    ((GstMfxEncoderClass *)(klass))
 #define GST_MFX_ENCODER_GET_CLASS(obj) \
-  GST_MFX_ENCODER_CLASS(GST_OBJECT_GET_CLASS(obj))
+    GST_MFX_ENCODER_CLASS(GST_OBJECT_GET_CLASS(obj))
+#define GST_MFX_ENCODER_GET_PRIVATE(obj) \
+    (G_TYPE_INSTANCE_GET_PRIVATE ((obj), GST_TYPE_MFX_ENCODER, \
+    GstMfxEncoderPrivate))
 
 /**
  * GST_MFX_ENCODER_VIDEO_INFO:
@@ -51,7 +52,7 @@ G_BEGIN_DECLS
  */
 #undef  GST_MFX_ENCODER_VIDEO_INFO
 #define GST_MFX_ENCODER_VIDEO_INFO(encoder) \
-  (&(encoder)->info)
+    (&(encoder)->info)
 
 /**
  * GST_MFX_ENCODER_WIDTH:
@@ -60,9 +61,8 @@ G_BEGIN_DECLS
  * Macro that evaluates to the coded width of the picture.
  * This is an internal macro that does not do any run-time type check.
  */
-#undef  GST_MFX_ENCODER_WIDTH
 #define GST_MFX_ENCODER_WIDTH(encoder) \
-  (GST_MFX_ENCODER_VIDEO_INFO (encoder)->width)
+    (GST_MFX_ENCODER_VIDEO_INFO (encoder)->width)
 
 /**
  * GST_MFX_ENCODER_HEIGHT:
@@ -71,9 +71,8 @@ G_BEGIN_DECLS
  * Macro that evaluates to the coded height of the picture.
  * This is an internal macro that does not do any run-time type check.
  */
-#undef  GST_MFX_ENCODER_HEIGHT
 #define GST_MFX_ENCODER_HEIGHT(encoder) \
-  (GST_MFX_ENCODER_VIDEO_INFO (encoder)->height)
+    (GST_MFX_ENCODER_VIDEO_INFO (encoder)->height)
 
 /**
  * GST_MFX_ENCODER_FPS_N:
@@ -82,9 +81,8 @@ G_BEGIN_DECLS
  * Macro that evaluates to the coded framerate numerator.
  * This is an internal macro that does not do any run-time type check.
  */
-#undef  GST_MFX_ENCODER_FPS_N
 #define GST_MFX_ENCODER_FPS_N(encoder) \
-  (GST_MFX_ENCODER_VIDEO_INFO (encoder)->fps_n)
+    (GST_MFX_ENCODER_VIDEO_INFO (encoder)->fps_n)
 
 /**
  * GST_MFX_ENCODER_FPS_D:
@@ -93,9 +91,8 @@ G_BEGIN_DECLS
  * Macro that evaluates to the coded framerate denominator.
  * This is an internal macro that does not do any run-time type check.
  */
-#undef  GST_MFX_ENCODER_FPS_D
 #define GST_MFX_ENCODER_FPS_D(encoder) \
-  (GST_MFX_ENCODER_VIDEO_INFO (encoder)->fps_d)
+    (GST_MFX_ENCODER_VIDEO_INFO (encoder)->fps_d)
 
 /**
  * GST_MFX_ENCODER_RATE_CONTROL:
@@ -104,9 +101,8 @@ G_BEGIN_DECLS
  * Macro that evaluates to the rate control.
  * This is an internal macro that does not do any run-time type check.
  */
-#undef  GST_MFX_ENCODER_RATE_CONTROL
 #define GST_MFX_ENCODER_RATE_CONTROL(encoder) \
-  ((encoder)->rc_method)
+    ((encoder)->rc_method)
 
 /**
  * GST_MFX_ENCODER_PRESET
@@ -115,12 +111,10 @@ G_BEGIN_DECLS
  * Macro that evaluates to the target usage option.
  * This is an internal macro that does not do any run-time type check.
  */
-
-#undef  GST_MFX_ENCODER_PRESET
 #define GST_MFX_ENCODER_PRESET(encoder) \
-  (GST_MFX_ENCODER_CAST (encoder)->preset)
+    (GST_MFX_ENCODER_CAST (encoder)->preset)
 #define GST_MFX_TYPE_ENCODER_PRESET \
-  (gst_mfx_encoder_preset_get_type ())
+    (gst_mfx_encoder_preset_get_type ())
 
 typedef struct _GstMfxEncoderClass GstMfxEncoderClass;
 typedef struct _GstMfxEncoderClassData GstMfxEncoderClassData;
@@ -138,18 +132,16 @@ typedef struct
     return NULL;                                                      \
 } while (0)
 
-GPtrArray *gst_mfx_encoder_properties_append (GPtrArray * props, gint prop_id,
-    GParamSpec * pspec);
+GPtrArray *
+gst_mfx_encoder_properties_append (GPtrArray * props, gint prop_id, GParamSpec * pspec);
 
-GPtrArray *gst_mfx_encoder_properties_get_default (const GstMfxEncoderClass *
-    klass);
-
+GPtrArray *
+gst_mfx_encoder_properties_get_default (const GstMfxEncoderClass * klass);
 
 typedef struct _GstMfxEncoderPrivate GstMfxEncoderPrivate;
 
 struct _GstMfxEncoderPrivate
 {
-  GstMfxEncoder *parent;
   GPtrArray *properties;
   GstMfxProfile profile;
 
@@ -213,20 +205,6 @@ struct _GstMfxEncoderPrivate
   mfxU16 trellis;
 };
 
-/**
-* GstMfxEncoder:
-*
-* Base class for MFX encoders.
-*/
-struct _GstMfxEncoder
-{
-  /*< private > */
-  GstObject parent_instance;
-
-  GstMfxEncoderPrivate *priv;
-};
-
-
 struct _GstMfxEncoderClassData
 {
   /*< private > */
@@ -240,7 +218,7 @@ struct _GstMfxEncoderClassData
   G_PASTE (GstMfxRateControl, CODEC),                                 \
   G_PASTE (gst_mfx_rate_control_, CODEC),                             \
   GST_MFX_TYPE_RATE_CONTROL, SUPPORTED_RATECONTROLS);                 \
-  \
+                                                                      \
   static const GstMfxEncoderClassData g_class_data = {                \
   .rate_control_get_type =                                            \
   G_PASTE (G_PASTE (gst_mfx_rate_control_, CODEC), _get_type),        \
@@ -271,7 +249,7 @@ struct _GstMfxEncoderClass
 GstMfxEncoder *
 gst_mfx_encoder_new (GstMfxEncoder * encoder,
     GstMfxTaskAggregator * aggregator,
-    const GstVideoInfo * info, gboolean mapped);
+    const GstVideoInfo * info, gboolean memtype_is_system);
 
 G_END_DECLS
 #endif /* GST_MFX_ENCODER_PRIV_H */

@@ -39,10 +39,8 @@
 
 #define GST_MFX_WINDOW_WAYLAND_CAST(obj) \
 	((GstMfxWindowWayland *)(obj))
-
 #define GST_MFX_WINDOW_WAYLAND_GET_PRIVATE(window) \
   (&GST_MFX_WINDOW_WAYLAND_CAST (window)->priv)
-
 
 typedef struct _GstMfxWindowWaylandPrivate GstMfxWindowWaylandPrivate;
 typedef struct _FrameState FrameState;
@@ -84,7 +82,7 @@ frame_state_free (FrameState * frame)
 
 struct _GstMfxWindowWaylandPrivate
 {
-  GstMfxDisplayWayland *display;
+  GstMfxDisplay *display;
 
   struct wl_shell_surface *shell_surface;
   struct wl_surface *surface;
