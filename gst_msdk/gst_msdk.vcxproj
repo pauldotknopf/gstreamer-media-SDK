@@ -22,6 +22,7 @@
     <ProjectGuid>{9B7D3E37-C79E-4BB3-B793-072AB9C7CE55}</ProjectGuid>
     <RootNamespace>gst_msdk</RootNamespace>
     <WindowsTargetPlatformVersion>8.1</WindowsTargetPlatformVersion>
+    <ProjectName>gstmfx</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
