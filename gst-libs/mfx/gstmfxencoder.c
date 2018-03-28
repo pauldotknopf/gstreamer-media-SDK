@@ -1278,6 +1278,19 @@ calculate_new_pts_and_dts (GstMfxEncoder * encoder, GstVideoCodecFrame * frame)
   frame->dts = (priv->bs.DecodeTimeStamp / (gdouble) 90000) * 1000000000;
 }
 
+static gboolean
+reset_encoder (GstMfxEncoder * encoder)
+{
+  GstMfxEncoderPrivate *const priv = GST_MFX_ENCODER_GET_PRIVATE (encoder);
+  mfxStatus sts;
+
+  gst_mfx_task_aggregator_set_current_task (priv->aggregator, priv->encode);
+  MFXVideoENCODE_Close (priv->session);
+  sts = MFXVideoENCODE_Init (priv->session, &priv->params);
+
+  return (MFX_ERR_NONE == sts);
+}
+
 GstMfxEncoderStatus
 gst_mfx_encoder_encode (GstMfxEncoder * encoder, GstVideoCodecFrame * frame)
 {
@@ -1343,6 +1356,14 @@ gst_mfx_encoder_encode (GstMfxEncoder * encoder, GstVideoCodecFrame * frame)
   else if (MFX_ERR_MORE_DATA == sts)
     return GST_MFX_ENCODER_STATUS_MORE_DATA;
 
+  if (MFX_ERR_DEVICE_FAILED == sts
+      || MFX_ERR_DEVICE_LOST == sts
+      || MFX_ERR_UNDEFINED_BEHAVIOR == sts) {
+    GST_WARNING ("MFX encode error %d, resetting encoder.", sts);
+    if (reset_encoder (encoder))
+      return GST_MFX_ENCODER_STATUS_RESET;
+  }
+
   if (MFX_ERR_NONE != sts) {
     GST_ERROR ("Status %d : Error during MFX encoding", sts);
     return GST_MFX_ENCODER_STATUS_ERROR_UNKNOWN;
@@ -1351,7 +1372,12 @@ gst_mfx_encoder_encode (GstMfxEncoder * encoder, GstVideoCodecFrame * frame)
   if (syncp) {
     do {
       sts = MFXVideoCORE_SyncOperation (priv->session, syncp, 1000);
-      if (MFX_ERR_NONE != sts && sts < 0) {
+      if (sts < 0) {
+        if (MFX_ERR_DEVICE_FAILED == sts || MFX_ERR_DEVICE_LOST == sts) {
+          GST_WARNING ("MFX encode error %d, resetting encoder.", sts);
+          if (reset_encoder (encoder))
+            return GST_MFX_ENCODER_STATUS_RESET;
+        }
         GST_ERROR ("MFXVideoCORE_SyncOperation() error status: %d", sts);
         return GST_MFX_ENCODER_STATUS_ERROR_OPERATION_FAILED;
       }

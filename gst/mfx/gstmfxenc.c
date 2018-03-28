@@ -388,6 +388,7 @@ gst_mfxenc_handle_frame (GstVideoEncoder * venc, GstVideoCodecFrame * frame)
   GstMfxSurface *surface;
   GstFlowReturn ret;
   GstBuffer *buf;
+  guint reset_count = 0;
 
   ret = gst_mfx_plugin_base_get_input_buffer (GST_MFX_PLUGIN_BASE (encode),
       frame->input_buffer, &buf);
@@ -408,9 +409,17 @@ gst_mfxenc_handle_frame (GstVideoEncoder * venc, GstVideoCodecFrame * frame)
   gst_video_codec_frame_set_user_data (frame,
       gst_mfx_surface_ref (surface), (GDestroyNotify) gst_mfx_surface_unref);
 
+encode:
   status = gst_mfx_encoder_encode (encode->encoder, frame);
   if (status < GST_MFX_ENCODER_STATUS_SUCCESS)
     goto error_encode_frame;
+  else if (GST_MFX_ENCODER_STATUS_RESET == status) {
+    reset_count++;
+    if (reset_count > 5) // reset up to 5 times consecutively
+      goto error_encode_frame;
+    else
+      goto encode;
+  }
   else if (status > 0) {
     gst_video_codec_frame_unref (frame);
     ret = GST_FLOW_OK;
